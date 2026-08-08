@@ -1,0 +1,17 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Electron Build Output
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Lokale Einstellungen (enthält ggf. Beamer-IP/Passwort, falls hier mal für Tests abgelegt)
+*.local.json

@@ -1,0 +1,64 @@
+{
+  "name": "beamer-steuerung",
+  "version": "1.0.0",
+  "description": "Einfache Beamer-Steuerung für die Kirche",
+  "main": "main.js",
+  "homepage": "./",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win --x64",
+    "build-portable": "electron-builder --win portable",
+    "pack": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "extend": "~3.0.0"
+  },
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "build": {
+    "appId": "com.kirche.beamersteuerung",
+    "productName": "Beamer Steuerung",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "dashboard.html",
+      "index.js",
+      "lib/**/*",
+      "package.json",
+      "!node_modules/electron/**/*",
+      "!node_modules/electron-builder/**/*"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "publisherName": "Ihre Kirche",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Beamer Steuerung"
+    },
+    "portable": {
+      "artifactName": "BeamerSteuerung-Portable.exe"
+    }
+  },
+  "author": {
+    "name": "Ihre Kirche",
+    "email": "technik@ihre-kirche.de"
+  },
+  "license": "MIT"
+}
