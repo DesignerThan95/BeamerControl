@@ -13,5 +13,8 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Brainstorming-Mockups (visual companion)
+.superpowers/
+
 # Lokale Einstellungen (enthält ggf. Beamer-IP/Passwort, falls hier mal für Tests abgelegt)
 *.local.json
