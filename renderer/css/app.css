@@ -132,6 +132,7 @@ input  { font: inherit; }
 .knopf.aus { background: var(--danger); border-color: var(--danger); color: var(--danger-text); font-weight: 600; width: 100%; margin-top: 24px; padding: 15px; }
 .knopf.aus:hover { filter: brightness(1.1); background: var(--danger); }
 .knopf.text { background: none; border: none; color: var(--accent-text); padding: 10px 0; }
+.knopf.zurueck { margin-bottom: 18px; }
 .knopf.text:hover { background: none; text-decoration: underline; }
 .knopf:disabled { opacity: .45; cursor: not-allowed; filter: none; }
 
