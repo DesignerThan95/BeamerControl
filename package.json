@@ -5,11 +5,13 @@
   "main": "main.js",
   "homepage": "./",
   "scripts": {
+    "test": "node --test test/*.test.js",
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
     "build-win": "electron-builder --win --x64",
     "build-portable": "electron-builder --win portable",
+    "build-mac": "electron-builder --mac",
     "pack": "electron-builder --dir",
     "postinstall": "electron-builder install-app-deps"
   },
@@ -44,6 +46,15 @@
       ],
       "publisherName": "Ihre Kirche",
       "verifyUpdateCodeSignature": false
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": false,
+      "identity": null
     },
     "nsis": {
       "oneClick": false,
