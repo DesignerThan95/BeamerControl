@@ -28,5 +28,24 @@ contextBridge.exposeInMainWorld('pjlinkAPI', {
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
 
     // Netzwerk-Scanner
-    scanNetwork: () => ipcRenderer.invoke('scan-network')
+    scanNetwork: () => ipcRenderer.invoke('scan-network'),
+
+    // Stummschaltung einzeln
+    setVideoMute: (an) => ipcRenderer.invoke('set-mute-video', an),
+    setAudioMute: (an) => ipcRenderer.invoke('set-mute-audio', an),
+
+    // Fortschritt des Netzwerk-Suchlaufs
+    onScanProgress: (cb) => {
+        const handler = (_event, data) => cb(data);
+        ipcRenderer.on('scan-progress', handler);
+        return () => ipcRenderer.removeListener('scan-progress', handler);
+    },
+
+    // Farbschema des Betriebssystems
+    getOsTheme: () => ipcRenderer.invoke('get-os-theme'),
+    onOsThemeChange: (cb) => {
+        const handler = (_event, wert) => cb(wert);
+        ipcRenderer.on('os-theme-changed', handler);
+        return () => ipcRenderer.removeListener('os-theme-changed', handler);
+    }
 });

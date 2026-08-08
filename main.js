@@ -1,5 +1,5 @@
 // main.js für Electron Desktop App
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -140,9 +140,24 @@ ipcMain.handle('get-available-inputs', async () => {
     return { inputs };
 });
 
+// Video und Ton werden einzeln geschaltet, damit sich beide unabhängig
+// voneinander an- und abschalten lassen.
 ipcMain.handle('set-mute', async (event, { video, audio }) => {
     if (!beamer) throw new Error('Nicht verbunden');
-    await promisifyPJLinkCall(beamer.setMute.bind(beamer), video, audio);
+    await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), video ? '11' : '10');
+    await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), audio ? '21' : '20');
+    return { success: true };
+});
+
+ipcMain.handle('set-mute-video', async (event, an) => {
+    if (!beamer) throw new Error('Nicht verbunden');
+    await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), an ? '11' : '10');
+    return { success: true };
+});
+
+ipcMain.handle('set-mute-audio', async (event, an) => {
+    if (!beamer) throw new Error('Nicht verbunden');
+    await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), an ? '21' : '20');
     return { success: true };
 });
 
@@ -242,7 +257,7 @@ function getDeviceNameQuick(host, port) {
     });
 }
 
-ipcMain.handle('scan-network', async () => {
+ipcMain.handle('scan-network', async (event) => {
     const PORT = 4352; // PJLink Standardport
     const TIMEOUT = 400; // ms pro Host
     const subnets = getLocalSubnets();
@@ -251,7 +266,17 @@ ipcMain.handle('scan-network', async () => {
         throw new Error('Kein aktives Netzwerk gefunden');
     }
 
+    const total = subnets.length * 254;
+    let checked = 0;
     const openHosts = [];
+    const devices = [];
+
+    // Meldet den Fortschritt an das Fenster, damit der Assistent einen Balken zeigen kann.
+    const melden = () => {
+        if (!event.sender.isDestroyed()) {
+            event.sender.send('scan-progress', { checked, total, devices: devices.slice() });
+        }
+    };
 
     for (const subnet of subnets) {
         const checks = [];
@@ -259,19 +284,34 @@ ipcMain.handle('scan-network', async () => {
             const host = `${subnet}.${i}`;
             checks.push(
                 checkPort(host, PORT, TIMEOUT).then((open) => {
+                    checked++;
                     if (open) openHosts.push(host);
+                    if (checked % 10 === 0) melden();
                 })
             );
         }
         await Promise.all(checks);
     }
+    melden();
 
     // Für jeden gefundenen Host best-effort den Gerätenamen holen
-    const devices = [];
     for (const host of openHosts) {
         const name = await getDeviceNameQuick(host, PORT);
         devices.push({ host, port: PORT, name: name || null });
+        melden();
     }
 
     return { devices };
+});
+
+// ============ FARBSCHEMA DES BETRIEBSSYSTEMS ============
+
+ipcMain.handle('get-os-theme', async () => {
+    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+});
+
+nativeTheme.on('updated', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('os-theme-changed', nativeTheme.shouldUseDarkColors ? 'dark' : 'light');
+    }
 });
