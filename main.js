@@ -78,7 +78,9 @@ function promisifyPJLinkCall(method, ...args) {
 // IPC Handlers für PJLink Funktionen
 ipcMain.handle('connect', async (event, { host, port, password }) => {
     try {
-        beamer = new PJLink(host, port, password);
+        // Ohne Zeitablauf hängt ein nicht erreichbarer Host bis zum
+        // Betriebssystem-Timeout (über eine Minute) und die Oberfläche steht still.
+        beamer = new PJLink({ host, port, password: password || null, timeout: 6000 });
 
         // Test connection
         await promisifyPJLinkCall(beamer.getPowerState.bind(beamer));

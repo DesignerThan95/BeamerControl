@@ -44,7 +44,7 @@ function fakeApi(anfang) {
         zustand: Object.assign({ power: 0, input: { code: '31', name: 'DIGITAL - 1' }, mute: { video: false, audio: false } }, anfang || {}),
         fehler: false,
         rufe: [],
-        async connect() { if (this.fehler) throw new Error('offline'); return { success: true }; },
+        async connect() { this.rufe.push('connect'); if (this.fehler) throw new Error('offline'); return { success: true }; },
         async getPowerState() {
             if (this.fehler) throw new Error('Zeitüberschreitung');
             const texte = { 0: 'Aus', 1: 'Ein', 2: 'Wird abgekühlt', 3: 'Wird aufgewärmt' };
@@ -73,6 +73,37 @@ test('erste Abfrage bringt den Zustand auf online', async () => {
     assert.strictEqual(b.getState().link, 'online');
     assert.strictEqual(b.getState().power, 'on');
     assert.strictEqual(b.getState().sourceCode, '31');
+});
+
+test('die Verbindung wird vor der ersten Abfrage aufgebaut', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    b.start();
+    await uhr.advance(1);
+    assert.strictEqual(api.rufe[0], 'connect', 'zuerst muss verbunden werden');
+});
+
+test('steht die Verbindung, wird nicht erneut verbunden', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    b.start();
+    await uhr.advance(1);
+    const nachStart = api.rufe.filter(function (r) { return r === 'connect'; }).length;
+    await uhr.advance(POLL_MS * 3);
+    const spaeter = api.rufe.filter(function (r) { return r === 'connect'; }).length;
+    assert.strictEqual(spaeter, nachStart, 'im laufenden Betrieb kein weiterer Verbindungsaufbau');
+});
+
+test('nach Verbindungsverlust wird bei jedem Versuch neu verbunden', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    b.start();
+    await uhr.advance(1);
+    api.fehler = true;
+    await uhr.advance(POLL_MS * 3);
+    assert.strictEqual(b.getState().link, 'offline');
+
+    const vorher = api.rufe.filter(function (r) { return r === 'connect'; }).length;
+    await uhr.advance(30000);
+    const nachher = api.rufe.filter(function (r) { return r === 'connect'; }).length;
+    assert.ok(nachher > vorher, 'im Offline-Zustand muss weiter verbunden werden');
 });
 
 test('Aufwärmen führt zum Zustand ein', async () => {
@@ -135,7 +166,7 @@ test('Einschalten wartet auf die Bestätigung des Beamers', async () => {
     await uhr.advance(1);
 
     await b.powerOn();
-    assert.deepStrictEqual(api.rufe, ['powerOn']);
+    assert.strictEqual(api.rufe[api.rufe.length - 1], 'powerOn');
     assert.strictEqual(b.getState().pending.kind, 'power-on');
 
     api.zustand.power = 3;

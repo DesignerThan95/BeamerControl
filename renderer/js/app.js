@@ -82,16 +82,13 @@ window.App = window.App || {};
             return;
         }
 
+        // Erst zeigen, dann verbinden: der Verbindungsaufbau kann Sekunden dauern,
+        // und ein leeres Fenster ist das Schlimmste, was hier stehen kann.
+        // Den Aufbau übernimmt die Zustandsmaschine selbst.
         const c = store.get().connection;
         log.add('Verbinde mit ' + c.host + ':' + c.port, 'info');
-        try {
-            await api.connect({ host: c.host, port: c.port, password: c.password });
-            log.add('Verbunden', 'ok');
-        } catch (e) {
-            log.add('Verbindung fehlgeschlagen: ' + e.message, 'fehler');
-        }
-        beamer.start();
         showView('operate');
+        beamer.start();
     }
 
     window.addEventListener('load', start);

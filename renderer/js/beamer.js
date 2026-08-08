@@ -97,6 +97,11 @@
             if (!laeuft) return;
 
             try {
+                // Die Zustandsmaschine baut die Verbindung selbst auf. Solange sie
+                // nicht steht, wird vor jeder Abfrage ein neuer Versuch unternommen.
+                if (state.link !== 'online') {
+                    await api.connect();
+                }
                 const neu = await abfragen();
                 fehlerInFolge = 0;
                 offlineVersuche = 0;
@@ -125,10 +130,7 @@
                 if (fehlerInFolge >= MAX_FEHLER && state.link !== 'offline') {
                     aendern({ link: 'offline', pending: null });
                 }
-                if (state.link === 'offline') {
-                    // Nach Verbindungsverlust neu aufbauen, bevor wieder gefragt wird.
-                    try { await api.connect(); } catch (e2) { /* beim nächsten Mal wieder */ }
-                }
+                // Der nächste Durchlauf baut die Verbindung von selbst neu auf.
             }
 
             planen();
