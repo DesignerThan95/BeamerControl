@@ -1,6 +1,6 @@
 {
   "name": "beamer-steuerung",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Einfache Beamer-Steuerung für die Kirche",
   "main": "main.js",
   "homepage": "./",
