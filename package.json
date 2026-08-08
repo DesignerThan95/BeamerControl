@@ -32,7 +32,7 @@
     "files": [
       "main.js",
       "preload.js",
-      "dashboard.html",
+      "renderer/**/*",
       "index.js",
       "lib/**/*",
       "package.json",

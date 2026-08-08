@@ -1,0 +1,174 @@
+/* Farb- und Größenvariablen.
+   :root ist hell. [data-theme="dark"] überschreibt, [data-contrast="high"]
+   überschreibt beide. Steht kein data-theme, entscheidet prefers-color-scheme. */
+
+:root {
+    --bg:            #faf8f5;
+    --bg-raised:     #f1ece5;
+    --surface:       #ffffff;
+    --surface-hover: #f6f2ec;
+    --border:        #ddd5c9;
+    --border-width:  1px;
+    --text:          #2b2926;
+    --text-dim:      #7a736a;
+
+    --accent:        #2f6fb5;
+    --accent-soft:   #e8f0f9;
+    --accent-border: #2f6fb5;
+    --accent-text:   #1c4f86;
+
+    --ok:            #2e9e6b;
+    --warn:          #b07d10;
+    --warn-soft:     #fdf4dd;
+    --warn-border:   #e0bd63;
+    --warn-text:     #6d4f06;
+    --danger:        #b03a2c;
+    --danger-text:   #ffffff;
+
+    --radius:        12px;
+    --radius-sm:     8px;
+    --shadow:        0 1px 2px rgba(70, 55, 35, .07);
+
+    --fs-hero:       28px;
+    --fs-status:     19px;
+    --fs-tile:       16px;
+    --fs-body:       14px;
+    --fs-small:      12px;
+    --fs-label:      11px;
+
+    --tile-pad:      22px 12px;
+    --gap:           12px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg:            #15171c;
+        --bg-raised:     #1c1f26;
+        --surface:       #22262e;
+        --surface-hover: #2a2f38;
+        --border:        #30353e;
+        --text:          #e6e8ec;
+        --text-dim:      #8b929c;
+
+        --accent:        #3f7ab5;
+        --accent-soft:   #1b2a3c;
+        --accent-border: #3f7ab5;
+        --accent-text:   #94c2ee;
+
+        --ok:            #3ecf8e;
+        --warn:          #e8b13a;
+        --warn-soft:     #3a2f14;
+        --warn-border:   #6b571c;
+        --warn-text:     #f0cd77;
+        --danger:        #b03a2c;
+
+        --shadow:        none;
+    }
+}
+
+:root[data-theme="dark"] {
+    --bg:            #15171c;
+    --bg-raised:     #1c1f26;
+    --surface:       #22262e;
+    --surface-hover: #2a2f38;
+    --border:        #30353e;
+    --text:          #e6e8ec;
+    --text-dim:      #8b929c;
+
+    --accent:        #3f7ab5;
+    --accent-soft:   #1b2a3c;
+    --accent-border: #3f7ab5;
+    --accent-text:   #94c2ee;
+
+    --ok:            #3ecf8e;
+    --warn:          #e8b13a;
+    --warn-soft:     #3a2f14;
+    --warn-border:   #6b571c;
+    --warn-text:     #f0cd77;
+    --danger:        #b03a2c;
+
+    --shadow:        none;
+}
+
+/* Hoher Kontrast wirkt in beiden Modi: kräftigere Ränder, größere Schrift,
+   maximale Helligkeitsunterschiede. Die gemeinsamen Größen stehen hier,
+   die Farben in den beiden Blöcken darunter. */
+:root[data-contrast="high"] {
+    --border-width:  2px;
+    --fs-hero:       34px;
+    --fs-status:     25px;
+    --fs-tile:       20px;
+    --fs-body:       17px;
+    --fs-small:      14px;
+    --fs-label:      13px;
+    --tile-pad:      28px 12px;
+    --shadow:        none;
+}
+
+/* Hoher Kontrast, hell: reines Schwarz auf Weiß. */
+:root[data-contrast="high"]:not([data-theme="dark"]) {
+    --bg:            #ffffff;
+    --bg-raised:     #ffffff;
+    --surface:       #ffffff;
+    --surface-hover: #ededed;
+    --border:        #000000;
+    --text:          #000000;
+    --text-dim:      #333333;
+    --accent:        #004a99;
+    --accent-soft:   #d6e6f8;
+    --accent-border: #004a99;
+    --accent-text:   #003467;
+    --ok:            #006b3c;
+    --warn:          #7a5200;
+    --warn-soft:     #fff0c9;
+    --warn-border:   #7a5200;
+    --warn-text:     #4a3200;
+    --danger:        #a80000;
+    --danger-text:   #ffffff;
+}
+
+/* Hoher Kontrast, dunkel: reines Weiß auf Schwarz. Gilt auch, wenn das
+   Betriebssystem dunkel steht und keine eigene Wahl getroffen wurde. */
+@media (prefers-color-scheme: dark) {
+    :root[data-contrast="high"]:not([data-theme="light"]) {
+        --bg:            #000000;
+        --bg-raised:     #000000;
+        --surface:       #1a1a1a;
+        --surface-hover: #262626;
+        --border:        #6a6a6a;
+        --text:          #ffffff;
+        --text-dim:      #c8c8c8;
+        --accent:        #4da3ff;
+        --accent-soft:   #002d5c;
+        --accent-border: #4da3ff;
+        --accent-text:   #9ecdff;
+        --ok:            #00e07a;
+        --warn:          #ffc94d;
+        --warn-soft:     #3a2c00;
+        --warn-border:   #ffc94d;
+        --warn-text:     #ffdb85;
+        --danger:        #e02020;
+        --danger-text:   #ffffff;
+    }
+}
+
+:root[data-contrast="high"][data-theme="dark"] {
+    --bg:            #000000;
+    --bg-raised:     #000000;
+    --surface:       #1a1a1a;
+    --surface-hover: #262626;
+    --border:        #6a6a6a;
+    --text:          #ffffff;
+    --text-dim:      #c8c8c8;
+    --accent:        #4da3ff;
+    --accent-soft:   #002d5c;
+    --accent-border: #4da3ff;
+    --accent-text:   #9ecdff;
+    --ok:            #00e07a;
+    --warn:          #ffc94d;
+    --warn-soft:     #3a2c00;
+    --warn-border:   #ffc94d;
+    --warn-text:     #ffdb85;
+    --danger:        #e02020;
+    --danger-text:   #ffffff;
+}

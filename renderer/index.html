@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+    <title>Beamer Steuerung</title>
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <header class="kopf">
+        <span class="kopf-titel">Beamer Steuerung</span>
+        <span class="kopf-knoepfe">
+            <button class="kopf-knopf" id="themaKnopf" title="Hell / Dunkel umschalten">◐</button>
+            <button class="kopf-knopf" id="technikKnopf" title="Technik">⚙</button>
+        </span>
+    </header>
+
+    <main class="ansicht" id="ansicht-operate"></main>
+    <main class="ansicht" id="ansicht-tech"></main>
+    <main class="ansicht" id="ansicht-setup"></main>
+
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/store.js"></script>
+    <script src="js/beamer.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/view-operate.js"></script>
+    <script src="js/view-tech.js"></script>
+    <script src="js/view-setup.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

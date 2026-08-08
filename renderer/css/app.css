@@ -1,0 +1,221 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', -apple-system, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--fs-body);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+button { font: inherit; cursor: pointer; color: inherit; }
+input  { font: inherit; }
+
+/* ---------- Kopfzeile ---------- */
+
+.kopf {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 18px;
+    background: var(--bg-raised);
+    border-bottom: var(--border-width) solid var(--border);
+    color: var(--text-dim);
+    font-size: var(--fs-small);
+    flex: none;
+}
+
+.kopf-titel { letter-spacing: .3px; }
+.kopf-knoepfe { display: flex; gap: 4px; }
+
+.kopf-knopf {
+    background: none;
+    border: none;
+    padding: 6px 9px;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    line-height: 1;
+    color: var(--text-dim);
+}
+.kopf-knopf:hover { background: var(--surface-hover); color: var(--text); }
+
+/* ---------- Bereiche ---------- */
+
+.ansicht { flex: 1; overflow-y: auto; padding: 24px; display: none; }
+.ansicht.aktiv { display: block; }
+.ansicht-innen { max-width: 900px; margin: 0 auto; }
+
+/* ---------- Statuszeile und Chips ---------- */
+
+.statuszeile {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.status { display: flex; align-items: center; gap: 11px; font-size: var(--fs-status); font-weight: 600; }
+.punkt { width: 11px; height: 11px; border-radius: 50%; background: var(--text-dim); flex: none; }
+.punkt.an { background: var(--ok); }
+.punkt.warten { background: var(--warn); }
+
+.chips { display: flex; gap: 9px; }
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: 99px;
+    padding: 9px 15px;
+    font-size: var(--fs-small);
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+.chip:hover { background: var(--surface-hover); }
+.chip.aktiv {
+    background: var(--warn-soft);
+    border-color: var(--warn-border);
+    color: var(--warn-text);
+    font-weight: 600;
+}
+
+/* ---------- Bildquellen ---------- */
+
+.feldname {
+    font-size: var(--fs-label);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin: 22px 0 11px;
+}
+
+.kacheln { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
+
+.kachel {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--tile-pad);
+    text-align: center;
+    font-size: var(--fs-tile);
+    font-weight: 600;
+    box-shadow: var(--shadow);
+}
+.kachel:hover { background: var(--surface-hover); }
+.kachel .unter { display: block; font-size: var(--fs-small); font-weight: 400; color: var(--text-dim); margin-top: 5px; }
+.kachel.aktiv {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+}
+.kachel.aktiv .unter { color: var(--accent-text); opacity: .8; }
+
+/* ---------- Knöpfe ---------- */
+
+.knopf {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 20px;
+    font-size: var(--fs-body);
+}
+.knopf:hover { background: var(--surface-hover); }
+.knopf.haupt { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.knopf.haupt:hover { filter: brightness(1.1); }
+.knopf.gross { padding: 26px; font-size: var(--fs-hero); width: 100%; border-radius: var(--radius); }
+.knopf.aus { background: var(--danger); border-color: var(--danger); color: var(--danger-text); font-weight: 600; width: 100%; margin-top: 24px; padding: 15px; }
+.knopf.aus:hover { filter: brightness(1.1); background: var(--danger); }
+.knopf.text { background: none; border: none; color: var(--accent-text); padding: 10px 0; }
+.knopf.text:hover { background: none; text-decoration: underline; }
+.knopf:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+
+/* ---------- Große Mitte (aus / wartet / kein Kontakt) ---------- */
+
+.mitte { text-align: center; padding: 44px 20px; }
+.mitte-titel { font-size: var(--fs-hero); font-weight: 600; margin-bottom: 10px; }
+.mitte-text { color: var(--text-dim); margin-bottom: 26px; line-height: 1.6; max-width: 520px; margin-left: auto; margin-right: auto; }
+
+.pulsen { display: inline-block; width: 46px; height: 46px; border-radius: 50%; border: 4px solid var(--border); border-top-color: var(--accent); animation: dreh 1.1s linear infinite; margin-bottom: 20px; }
+@keyframes dreh { to { transform: rotate(360deg); } }
+
+/* ---------- Hinweisstreifen ---------- */
+
+.streifen {
+    background: var(--warn-soft);
+    border: var(--border-width) solid var(--warn-border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 22px;
+}
+.streifen-titel { font-size: var(--fs-status); font-weight: 600; color: var(--warn-text); }
+.streifen-text { font-size: var(--fs-small); color: var(--warn-text); opacity: .85; margin-top: 3px; }
+.streifen-knopf { background: var(--warn-border); color: var(--warn-text); border: none; border-radius: var(--radius-sm); padding: 13px 20px; font-weight: 700; flex: none; }
+.streifen-knopf:hover { filter: brightness(1.08); }
+
+/* ---------- Dialog ---------- */
+
+.dialog-grund { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.dialog { background: var(--bg-raised); border: var(--border-width) solid var(--border); border-radius: var(--radius); padding: 26px; max-width: 420px; }
+.dialog h2 { font-size: var(--fs-status); margin-bottom: 10px; }
+.dialog p { color: var(--text-dim); line-height: 1.6; margin-bottom: 22px; }
+.dialog-knoepfe { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ---------- Technik-Seite ---------- */
+
+.block { margin-bottom: 34px; }
+.block-titel { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); padding-bottom: 9px; border-bottom: var(--border-width) solid var(--border); margin-bottom: 16px; }
+
+.felder { display: grid; grid-template-columns: 2fr 1fr 1.4fr; gap: var(--gap); }
+.feld-lab { font-size: var(--fs-label); color: var(--text-dim); margin-bottom: 6px; }
+.eingabe { width: 100%; background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; color: var(--text); }
+
+.knopfzeile { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+.verbindungsstand { margin-left: auto; font-size: var(--fs-small); display: flex; align-items: center; gap: 8px; }
+
+.trefferliste { margin-top: 12px; border: var(--border-width) solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.treffer { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: var(--border-width) solid var(--border); font-size: var(--fs-small); background: var(--surface); }
+.treffer:last-child { border-bottom: none; }
+.treffer-host { font-family: ui-monospace, 'Consolas', monospace; color: var(--accent-text); }
+
+.quellzeile { display: grid; grid-template-columns: 26px 150px 1fr 80px; gap: var(--gap); align-items: center; padding: 9px 0; border-bottom: var(--border-width) solid var(--border); font-size: var(--fs-small); }
+.quellzeile.kopf { color: var(--text-dim); text-transform: uppercase; letter-spacing: .9px; font-size: var(--fs-label); }
+.quellzeile:last-child { border-bottom: none; }
+.griff { text-align: center; color: var(--text-dim); cursor: grab; user-select: none; }
+.quellcode { color: var(--text-dim); font-family: ui-monospace, 'Consolas', monospace; }
+.quellzeile input[type="checkbox"] { width: 18px; height: 18px; }
+.quellzeile .haken { text-align: center; }
+.quellzeile.zieht { opacity: .4; }
+
+.wahl { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.wahl label { display: flex; gap: 7px; align-items: center; cursor: pointer; }
+
+.protokoll { background: var(--bg); border: var(--border-width) solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; font-family: ui-monospace, 'Consolas', monospace; font-size: var(--fs-small); line-height: 1.9; max-height: 220px; overflow-y: auto; color: var(--text-dim); }
+.protokoll .ok { color: var(--ok); }
+.protokoll .fehler { color: var(--danger); }
+
+/* ---------- Assistent ---------- */
+
+.schritte { display: flex; gap: 8px; align-items: center; margin-bottom: 26px; }
+.schritt { width: 24px; height: 24px; border-radius: 50%; background: var(--surface); border: var(--border-width) solid var(--border); color: var(--text-dim); display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-small); flex: none; }
+.schritt.jetzt { background: var(--accent); border-color: var(--accent); color: #fff; }
+.schritt.fertig { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-text); }
+
+.assistent-titel { font-size: var(--fs-hero); font-weight: 600; margin-bottom: 10px; }
+.assistent-text { color: var(--text-dim); line-height: 1.6; margin-bottom: 24px; max-width: 620px; }
+
+.balken { height: 6px; background: var(--surface); border: var(--border-width) solid var(--border); border-radius: 99px; overflow: hidden; margin: 20px 0 10px; }
+.balken > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .3s; }
+
+.pruefliste { list-style: none; margin-bottom: 8px; }
+.pruefliste li { padding: 7px 0 7px 24px; position: relative; color: var(--text-dim); line-height: 1.5; }
+.pruefliste li::before { content: '•'; position: absolute; left: 6px; color: var(--accent); }

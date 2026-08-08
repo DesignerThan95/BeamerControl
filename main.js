@@ -37,7 +37,7 @@ function createWindow() {
         }
     });
 
-    mainWindow.loadFile('dashboard.html');
+    mainWindow.loadFile('renderer/index.html');
 
     // Optional: Entwicklertools ausblenden für Produktionsumgebung
     // mainWindow.webContents.openDevTools();
