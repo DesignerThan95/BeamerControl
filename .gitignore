@@ -18,3 +18,7 @@ Thumbs.db
 
 # Lokale Einstellungen (enthält ggf. Beamer-IP/Passwort, falls hier mal für Tests abgelegt)
 *.local.json
+
+# Claude Code (persönliche/maschinenspezifische Settings, nicht fürs Team)
+.claude/settings.local.json
+CLAUDE.local.md
