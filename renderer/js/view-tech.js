@@ -78,7 +78,8 @@ window.App.viewTech = (function () {
                     el('span', { class: 'punkt' + (verbindungsArt === 'ok' ? ' an' : '') }),
                     verbindungstext
                 ]) : null
-            ])
+            ]),
+            el('p', { class: 'hinweis', text: 'Die Suche findet nur Beamer, die gerade auf ihren Netzwerkanschluss antworten. Ein ausgeschalteter Beamer schaltet meist auch seine Netzwerkkarte ab. Damit er im Standby erreichbar bleibt — und sich von hier aus einschalten lässt —, muss im Beamer-Menü unter Netzwerk „Netzwerk-Standby" (teils „LAN im Standby" oder „Always On") aktiviert sein.' })
         ];
 
         if (suchlauf.laeuft) {

@@ -30,10 +30,6 @@ contextBridge.exposeInMainWorld('pjlinkAPI', {
     // Netzwerk-Scanner
     scanNetwork: () => ipcRenderer.invoke('scan-network'),
 
-    // Stummschaltung einzeln
-    setVideoMute: (an) => ipcRenderer.invoke('set-mute-video', an),
-    setAudioMute: (an) => ipcRenderer.invoke('set-mute-audio', an),
-
     // Fortschritt des Netzwerk-Suchlaufs
     onScanProgress: (cb) => {
         const handler = (_event, data) => cb(data);

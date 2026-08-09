@@ -45,7 +45,9 @@ function fakeApi(anfang) {
         fehler: false,
         rufe: [],
         async connect() { this.rufe.push('connect'); if (this.fehler) throw new Error('offline'); return { success: true }; },
+        abfragen: 0,
         async getPowerState() {
+            this.abfragen++;
             if (this.fehler) throw new Error('Zeitüberschreitung');
             const texte = { 0: 'Aus', 1: 'Ein', 2: 'Wird abgekühlt', 3: 'Wird aufgewärmt' };
             return { state: this.zustand.power, description: texte[this.zustand.power] };
@@ -184,9 +186,62 @@ test('ein Befehl ohne Bestätigung läuft nach 30 Sekunden ab', async () => {
     await uhr.advance(1);
 
     await b.powerOn();
-    await uhr.advance(COMMAND_TIMEOUT_MS + POLL_MS);
-    assert.strictEqual(b.getState().pendingTimedOut, true);
+    await uhr.advance(COMMAND_TIMEOUT_MS + POLL_MS * 2);
+    assert.ok(b.getState().commandError, 'es muss eine Meldung im Klartext geben');
     assert.strictEqual(b.getState().pending, null);
+});
+
+test('ein abgelehnter Befehl blockiert die Bedienung nicht dauerhaft', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    b.start();
+    await uhr.advance(1);
+
+    // Der Beamer lehnt die Stummschaltung ab (kennt den Befehl nicht).
+    api.setMute = async () => { throw new Error('Undefined command'); };
+    await assert.rejects(() => b.setMute({ video: true, audio: false }));
+
+    assert.ok(b.getState().commandError, 'der Fehler muss sichtbar werden');
+    assert.strictEqual(b.getState().pending, null);
+
+    // Entscheidend: die Zustandsmaschine muss danach normal weiterlaufen.
+    assert.strictEqual(b.getState().link, 'online');
+    assert.strictEqual(b.getState().power, 'on', 'der Beamer läuft weiter und das muss man sehen');
+
+    // Und der Hinweis lässt sich wegklicken, ohne die App neu zu starten.
+    b.dismissError();
+    assert.strictEqual(b.getState().commandError, null);
+});
+
+test('ein erfolgreicher Befehl räumt eine alte Fehlermeldung weg', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    b.start();
+    await uhr.advance(1);
+
+    const echtesSetMute = api.setMute.bind(api);
+    api.setMute = async () => { throw new Error('Undefined command'); };
+    await assert.rejects(() => b.setMute({ video: true, audio: false }));
+    assert.ok(b.getState().commandError);
+
+    api.setMute = echtesSetMute;
+    await b.setMute({ video: true, audio: false });
+    assert.strictEqual(b.getState().commandError, null, 'der neue Versuch beginnt ohne alte Meldung');
+});
+
+test('nach einem Befehl wird eine Weile schneller nachgefragt', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    b.start();
+    await uhr.advance(1);
+
+    const ruhig = api.abfragen;
+    await uhr.advance(POLL_MS);
+    const imRuhetakt = api.abfragen - ruhig;
+
+    await b.selectSource('32');
+    const vorher = api.abfragen;
+    await uhr.advance(POLL_MS);
+    const nachBefehl = api.abfragen - vorher;
+
+    assert.ok(nachBefehl > imRuhetakt, 'im gleichen Zeitraum muss öfter abgefragt werden (' + nachBefehl + ' statt ' + imRuhetakt + ')');
 });
 
 test('Quelle wählen meldet den Wechsel nach der Bestätigung', async () => {
@@ -212,6 +267,33 @@ test('Stummschaltung wird übernommen', async () => {
     api.zustand.mute = { video: true, audio: false };
     await uhr.advance(POLL_MS);
     assert.strictEqual(b.getState().mute.video, true);
+});
+
+test('koppelt der Beamer Bild und Ton, gilt der Befehl trotzdem als erledigt', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    b.start();
+    await uhr.advance(1);
+
+    // Gewünscht: nur das Bild ausblenden. Der Beamer kann das nicht getrennt
+    // und schaltet beides stumm — der Wunsch ist damit sinngemäß erfüllt.
+    await b.setMute({ video: true, audio: false });
+    api.zustand.mute = { video: true, audio: true };
+    await uhr.advance(POLL_MS);
+
+    assert.strictEqual(b.getState().pending, null, 'kein ewig laufender Befehl');
+    assert.strictEqual(b.getState().commandError, null, 'und keine Fehlermeldung');
+});
+
+test('stimmt das Bild nicht, gilt der Befehl nicht als erledigt', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    b.start();
+    await uhr.advance(1);
+
+    await b.setMute({ video: true, audio: false });
+    api.zustand.mute = { video: false, audio: false };
+    await uhr.advance(POLL_MS);
+
+    assert.ok(b.getState().pending, 'der Befehl läuft weiter');
 });
 
 test('onChange meldet jede Zustandsänderung', async () => {

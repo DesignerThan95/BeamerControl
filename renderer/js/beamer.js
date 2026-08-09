@@ -11,6 +11,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
     const POLL_MS = 5000;
+    const SCHNELL_POLL_MS = 1000;   // kurz nach einem Befehl
+    const SCHNELL_DAUER_MS = 20000; // so lange bleibt es schnell
     const COMMAND_TIMEOUT_MS = 30000;
     const BACKOFF_MS = [5000, 10000, 20000, 30000];
     const MAX_FEHLER = 3;
@@ -30,7 +32,7 @@
             sourceName: null,
             mute: { video: false, audio: false },
             pending: null,
-            pendingTimedOut: false
+            commandError: null
         };
 
         let hoerer = [];
@@ -38,6 +40,8 @@
         let laeuft = false;
         let fehlerInFolge = 0;
         let offlineVersuche = 0;
+        let schnellBis = 0;
+        let inTick = false;
 
         function melden() {
             const kopie = JSON.parse(JSON.stringify(state));
@@ -58,7 +62,11 @@
             if (p.kind === 'power-off') return neu.power === 'off';
             if (p.kind === 'source') return neu.sourceCode === p.target;
             if (p.kind === 'mute') {
-                return neu.mute.video === p.target.video && neu.mute.audio === p.target.audio;
+                const ziel = p.target;
+                if (neu.mute.video === ziel.video && neu.mute.audio === ziel.audio) return true;
+                // Viele Beamer können Bild und Ton nur gemeinsam stummschalten.
+                // Dann zählt, dass das Bild stimmt — sonst liefe der Befehl ewig.
+                return neu.mute.video === neu.mute.audio && neu.mute.video === ziel.video;
             }
             return false;
         }
@@ -95,6 +103,7 @@
 
         async function tick() {
             if (!laeuft) return;
+            inTick = true;
 
             try {
                 // Die Zustandsmaschine baut die Verbindung selbst auf. Solange sie
@@ -117,10 +126,10 @@
                 if (state.pending) {
                     if (befehlErfuellt(neu)) {
                         teil.pending = null;
-                        teil.pendingTimedOut = false;
+                        teil.commandError = null;
                     } else if (now() - state.pending.startedAt >= COMMAND_TIMEOUT_MS) {
                         teil.pending = null;
-                        teil.pendingTimedOut = true;
+                        teil.commandError = 'Der Beamer hat den Befehl nicht bestätigt. Schau kurz zur Leinwand — oft hat es trotzdem geklappt.';
                     }
                 }
 
@@ -133,6 +142,7 @@
                 // Der nächste Durchlauf baut die Verbindung von selbst neu auf.
             }
 
+            inTick = false;
             planen();
         }
 
@@ -143,23 +153,34 @@
                 const i = Math.min(offlineVersuche, BACKOFF_MS.length - 1);
                 wartezeit = BACKOFF_MS[i];
                 offlineVersuche++;
+            } else if (now() < schnellBis) {
+                // Kurz nach einem Befehl öfter nachfragen, damit die Anzeige
+                // zügig nachzieht statt bis zu fünf Sekunden hinterherzuhinken.
+                wartezeit = SCHNELL_POLL_MS;
             }
             timer = schedule(tick, wartezeit);
         }
 
-        function befehlStarten(kind, target) {
+        async function senden(kind, target, fn) {
+            schnellBis = now() + SCHNELL_DAUER_MS;
+            // Sofort umplanen, sonst greift die schnelle Abfrage erst nach dem
+            // bereits laufenden Fünf-Sekunden-Takt. Läuft gerade ein Durchlauf,
+            // übernimmt dessen eigenes planen() den neuen Takt.
+            if (laeuft && !inTick) {
+                if (timer !== null) cancel(timer);
+                timer = schedule(tick, SCHNELL_POLL_MS);
+            }
             aendern({
                 pending: { kind: kind, target: target === undefined ? null : target, startedAt: now() },
-                pendingTimedOut: false
+                commandError: null
             });
-        }
-
-        async function senden(kind, target, fn) {
-            befehlStarten(kind, target);
             try {
                 await fn();
             } catch (e) {
-                aendern({ pending: null, pendingTimedOut: true });
+                // Wichtig: der Befehl ist gescheitert, die Verbindung aber nicht.
+                // Die Bedienung muss weiter benutzbar bleiben — deshalb nur eine
+                // Meldung setzen, die sich wegklicken lässt.
+                aendern({ pending: null, commandError: e.message || 'Der Befehl ist fehlgeschlagen.' });
                 throw e;
             }
         }
@@ -191,6 +212,10 @@
             refreshNow: function () {
                 if (timer !== null) cancel(timer);
                 return tick();
+            },
+
+            dismissError: function () {
+                aendern({ commandError: null });
             },
 
             powerOn: function () {

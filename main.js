@@ -45,13 +45,14 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
+// Auch auf macOS vollständig beenden: Das hier ist ein Bediengerät für einen
+// Beamer, kein Dokumentenprogramm — ein unsichtbar weiterlaufendes Programm im
+// Dock verwirrt mehr, als es nützt.
 app.on('window-all-closed', () => {
     if (beamer) {
         beamer.disconnect();
     }
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    app.quit();
 });
 
 app.on('activate', () => {
@@ -142,25 +143,22 @@ ipcMain.handle('get-available-inputs', async () => {
     return { inputs };
 });
 
-// Video und Ton werden einzeln geschaltet, damit sich beide unabhängig
-// voneinander an- und abschalten lassen.
+// Bild und Ton werden zuerst einzeln geschaltet (AVMT 11/10 und 21/20).
+// Viele Beamer — darunter etliche Optoma — kennen nur das gemeinsame
+// Schalten (AVMT 31/30) und antworten auf die Einzelwerte mit ERR1
+// "Undefined command". Dann wird auf den gemeinsamen Wert zurückgefallen,
+// wobei das Bild den Ausschlag gibt: es ist das, was im Raum auffällt.
 ipcMain.handle('set-mute', async (event, { video, audio }) => {
     if (!beamer) throw new Error('Nicht verbunden');
-    await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), video ? '11' : '10');
-    await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), audio ? '21' : '20');
-    return { success: true };
-});
 
-ipcMain.handle('set-mute-video', async (event, an) => {
-    if (!beamer) throw new Error('Nicht verbunden');
-    await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), an ? '11' : '10');
-    return { success: true };
-});
-
-ipcMain.handle('set-mute-audio', async (event, an) => {
-    if (!beamer) throw new Error('Nicht verbunden');
-    await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), an ? '21' : '20');
-    return { success: true };
+    try {
+        await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), video ? '11' : '10');
+        await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), audio ? '21' : '20');
+        return { success: true, mode: 'separat' };
+    } catch (error) {
+        await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), video ? '31' : '30');
+        return { success: true, mode: 'gemeinsam', hinweis: error.message };
+    }
 });
 
 ipcMain.handle('get-mute-state', async () => {
@@ -211,10 +209,13 @@ function getLocalSubnets() {
     const subnets = [];
     for (const name in interfaces) {
         for (const iface of interfaces[name]) {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                const parts = iface.address.split('.');
-                subnets.push(parts.slice(0, 3).join('.'));
-            }
+            if (iface.family !== 'IPv4' || iface.internal) continue;
+            // 169.254.x.x vergibt sich ein Gerät selbst, wenn es keine Adresse
+            // bekommen hat. Dort steht garantiert kein Beamer — die 254 Adressen
+            // zu prüfen kostet nur Zeit.
+            if (iface.address.startsWith('169.254.')) continue;
+            const parts = iface.address.split('.');
+            subnets.push(parts.slice(0, 3).join('.'));
         }
     }
     return [...new Set(subnets)];
@@ -261,7 +262,7 @@ function getDeviceNameQuick(host, port) {
 
 ipcMain.handle('scan-network', async (event) => {
     const PORT = 4352; // PJLink Standardport
-    const TIMEOUT = 400; // ms pro Host
+    const TIMEOUT = 900; // ms pro Host — Beamer im Standby antworten träge
     const subnets = getLocalSubnets();
 
     if (subnets.length === 0) {

@@ -100,7 +100,8 @@ window.App.viewSetup = (function () {
                 el('div', { class: 'assistent-titel', text: 'Kein Beamer gefunden' }),
                 el('div', { class: 'assistent-text', text: 'Das hat meist einen dieser Gründe:' }),
                 el('ul', { class: 'pruefliste' }, [
-                    el('li', { text: 'Der Beamer ist ganz aus. Er muss laufen oder im Netzwerk-Standby sein.' }),
+                    el('li', { text: 'Der Beamer ist ganz aus. Ein ausgeschalteter Beamer schaltet meist auch seine Netzwerkkarte ab und ist dann für kein Programm auffindbar. Schalte ihn zum Einrichten mit der Fernbedienung ein.' }),
+                    el('li', { text: 'Damit er auch im ausgeschalteten Zustand erreichbar bleibt, muss im Beamer-Menü unter Netzwerk die Einstellung „Netzwerk-Standby" (teils „LAN im Standby" oder „Always On") eingeschaltet sein.' }),
                     el('li', { text: 'Im Beamer-Menü ist PJLink nicht eingeschaltet.' }),
                     el('li', { text: 'Beamer und dieser Rechner hängen in verschiedenen Netzwerken.' })
                 ]),

@@ -11,6 +11,7 @@ window.App = window.App || {};
     });
 
     const theme = App.theme.createTheme(store);
+    let muteHinweisGezeigt = false;
 
     const beamer = App.beamer.createBeamer({
         api: {
@@ -24,7 +25,17 @@ window.App = window.App || {};
             powerOn: api.powerOn,
             powerOff: api.powerOff,
             setInput: api.setInput,
-            setMute: function (m) { return api.setMute(m); }
+            setMute: async function (m) {
+                const erg = await api.setMute(m);
+                // Kann der Beamer Bild und Ton nur gemeinsam stummschalten,
+                // gehört das ins Protokoll — sonst wundert sich die Technik,
+                // warum beide Schalter gemeinsam umspringen.
+                if (erg && erg.mode === 'gemeinsam' && !muteHinweisGezeigt) {
+                    muteHinweisGezeigt = true;
+                    log.add('Dieser Beamer kann Bild und Ton nur gemeinsam stummschalten — beide Schalter wirken deshalb zusammen.', 'info');
+                }
+                return erg;
+            }
         },
         schedule: function (fn, ms) { return window.setTimeout(fn, ms); },
         cancel: function (id) { window.clearTimeout(id); },

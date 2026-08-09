@@ -15,62 +15,98 @@ window.App.viewOperate = (function () {
 
     let ctx = null;
     let wurzel = null;
-    // Läuft ein Befehl, wird gesperrt — sonst klickt jemand dreimal hintereinander.
-    let sperre = false;
 
     function sichtbareQuellen() {
         return ctx.store.get().sources.filter(function (s) { return s.visible; });
     }
 
-    async function mitSperre(fn, meldung) {
-        if (sperre) return;
-        sperre = true;
-        render();
+    // Solange ein Befehl läuft, ist nichts anderes anklickbar — sonst klickt
+    // jemand dreimal hintereinander, weil der Beamer träge antwortet.
+    function laeuftBefehl(zustand) {
+        return zustand.pending !== null;
+    }
+
+    async function befehl(fn, meldung) {
         try {
             await fn();
             if (meldung) ctx.log.add(meldung, 'ok');
         } catch (e) {
             ctx.log.add('Befehl fehlgeschlagen: ' + e.message, 'fehler');
-        } finally {
-            sperre = false;
-            render();
         }
+    }
+
+    function spinner() {
+        return el('span', { class: 'spinner-klein' });
+    }
+
+    // Die PJLink-Bibliothek liefert englische Rohtexte. Auf diesem Bildschirm
+    // darf nichts davon stehen — der Rohtext bleibt im Protokoll.
+    const FEHLERTEXTE = {
+        'Undefined command': 'Der Beamer kennt diesen Befehl nicht.',
+        'Out of parameter': 'Der Beamer hat diese Einstellung nicht angenommen.',
+        'Unavailable time': 'Gerade nicht möglich — der Beamer ist beschäftigt, etwa beim Auf- oder Abwärmen.',
+        'Projector/Display failure': 'Der Beamer meldet eine Störung an sich selbst.',
+        'Authorization failed': 'Das Passwort stimmt nicht. Es lässt sich hinter dem Zahnrad ändern.',
+        'Command reply mismatch': 'Der Beamer hat unerwartet geantwortet.',
+        'Not connected': 'Gerade keine Verbindung zum Beamer.',
+        'Connection timeout': 'Der Beamer hat nicht rechtzeitig geantwortet.',
+        'Nicht verbunden': 'Gerade keine Verbindung zum Beamer.'
+    };
+
+    function fehlerKlartext(roh) {
+        return FEHLERTEXTE[roh] || roh || 'Der Beamer hat den Befehl nicht ausgeführt.';
     }
 
     // ---------- Bausteine ----------
 
-    function statuszeile(zustand) {
-        const chipVideo = el('button', {
-            class: 'chip' + (zustand.mute.video ? ' aktiv' : ''),
-            onclick: function () {
-                mitSperre(function () {
-                    return ctx.beamer.setMute({ video: !zustand.mute.video, audio: zustand.mute.audio });
-                }, zustand.mute.video ? 'Bild wieder eingeblendet' : 'Bild ausgeblendet');
-            },
-            disabled: sperre
-        }, ['🚫 Bild ausblenden']);
+    function fehlerstreifen(zustand) {
+        return el('div', { class: 'streifen fehler' }, [
+            el('div', {}, [
+                el('div', { class: 'streifen-titel', text: 'Das hat nicht geklappt' }),
+                el('div', { class: 'streifen-text', text: fehlerKlartext(zustand.commandError) })
+            ]),
+            el('button', {
+                class: 'streifen-knopf',
+                onclick: function () { ctx.beamer.dismissError(); }
+            }, ['Verstanden'])
+        ]);
+    }
 
-        const chipTon = el('button', {
-            class: 'chip' + (zustand.mute.audio ? ' aktiv' : ''),
-            onclick: function () {
-                mitSperre(function () {
-                    return ctx.beamer.setMute({ video: zustand.mute.video, audio: !zustand.mute.audio });
-                }, zustand.mute.audio ? 'Ton wieder an' : 'Ton stummgeschaltet');
-            },
-            disabled: sperre
-        }, ['🔇 Ton stumm']);
+    function statuszeile(zustand) {
+        const gesperrt = laeuftBefehl(zustand);
+        const muteLaeuft = zustand.pending && zustand.pending.kind === 'mute';
+
+        function chip(beschriftung, symbol, aktiv, ziel) {
+            const zeigtSpinner = muteLaeuft
+                && zustand.pending.target.video === ziel.video
+                && zustand.pending.target.audio === ziel.audio;
+
+            return el('button', {
+                class: 'chip' + (aktiv ? ' aktiv' : ''),
+                disabled: gesperrt,
+                onclick: function () {
+                    befehl(function () { return ctx.beamer.setMute(ziel); },
+                        aktiv ? beschriftung + ' aufgehoben' : beschriftung + ' aktiviert');
+                }
+            }, [zeigtSpinner ? spinner() : symbol + ' ', beschriftung]);
+        }
 
         return el('div', { class: 'statuszeile' }, [
             el('div', { class: 'status' }, [
                 el('span', { class: 'punkt an' }),
                 'Beamer läuft'
             ]),
-            el('div', { class: 'chips' }, [chipVideo, chipTon])
+            el('div', { class: 'chips' }, [
+                chip('Bild ausblenden', '🚫', zustand.mute.video, { video: !zustand.mute.video, audio: zustand.mute.audio }),
+                chip('Ton stumm', '🔇', zustand.mute.audio, { video: zustand.mute.video, audio: !zustand.mute.audio })
+            ])
         ]);
     }
 
     function quellenBereich(zustand) {
         const quellen = sichtbareQuellen();
+        const gesperrt = laeuftBefehl(zustand);
+        const wechselZu = zustand.pending && zustand.pending.kind === 'source' ? zustand.pending.target : null;
 
         if (quellen.length === 0) {
             return el('div', {}, [
@@ -81,16 +117,20 @@ window.App.viewOperate = (function () {
 
         const kacheln = quellen.map(function (q) {
             const aktiv = zustand.sourceCode === q.code;
+            const wechselt = wechselZu === q.code;
+
             return el('button', {
-                class: 'kachel' + (aktiv ? ' aktiv' : ''),
-                disabled: sperre,
+                class: 'kachel' + (aktiv ? ' aktiv' : '') + (wechselt ? ' wechselt' : ''),
+                disabled: gesperrt,
                 onclick: function () {
                     if (aktiv) return;
-                    mitSperre(function () { return ctx.beamer.selectSource(q.code); }, 'Bildquelle gewechselt auf ' + q.label);
+                    befehl(function () { return ctx.beamer.selectSource(q.code); }, 'Bildquelle gewechselt auf ' + q.label);
                 }
             }, [
                 q.label,
-                el('span', { class: 'unter', text: anschlussName(q.code) })
+                wechselt
+                    ? el('span', { class: 'unter' }, [spinner(), ' wird umgeschaltet …'])
+                    : el('span', { class: 'unter', text: anschlussName(q.code) })
             ]);
         });
 
@@ -111,10 +151,10 @@ window.App.viewOperate = (function () {
         ]);
     }
 
-    function ausschaltKnopf() {
+    function ausschaltKnopf(zustand) {
         return el('button', {
             class: 'knopf aus',
-            disabled: sperre,
+            disabled: laeuftBefehl(zustand),
             onclick: async function () {
                 const ja = await ui.confirmDialog({
                     titel: 'Beamer ausschalten?',
@@ -122,7 +162,7 @@ window.App.viewOperate = (function () {
                     bestaetigen: 'Ja, ausschalten',
                     abbrechen: 'Abbrechen'
                 });
-                if (ja) mitSperre(function () { return ctx.beamer.powerOff(); }, 'Ausschalten angefordert');
+                if (ja) befehl(function () { return ctx.beamer.powerOff(); }, 'Ausschalten angefordert');
             }
         }, ['Beamer ausschalten']);
     }
@@ -161,12 +201,15 @@ window.App.viewOperate = (function () {
             );
         }
 
-        if (zustand.pendingTimedOut) {
-            return mitte(
-                'Der Beamer antwortet nicht wie erwartet',
-                'Der Befehl wurde gesendet, aber der Beamer hat den neuen Zustand nicht gemeldet. Schau kurz zur Leinwand — oft hat es trotzdem geklappt.',
-                el('button', { class: 'knopf haupt', onclick: function () { ctx.beamer.refreshNow(); } }, ['Zustand neu abfragen'])
-            );
+        // Ein laufender Ein- oder Ausschaltbefehl übernimmt den Bildschirm, bis
+        // der Beamer den neuen Zustand meldet. Sonst stünde weiter der
+        // Einschalten-Knopf da, obwohl der Beamer längst hochfährt.
+        if (zustand.pending && zustand.pending.kind === 'power-on') {
+            return warten('Der Beamer wird eingeschaltet …', 'Bitte einen Moment Geduld — das Hochfahren dauert meist eine halbe bis eine Minute.');
+        }
+
+        if (zustand.pending && zustand.pending.kind === 'power-off') {
+            return warten('Der Beamer wird ausgeschaltet …', 'Danach kühlt die Lampe ab.');
         }
 
         if (zustand.power === 'warming') {
@@ -183,9 +226,8 @@ window.App.viewOperate = (function () {
                 null,
                 el('button', {
                     class: 'knopf haupt gross',
-                    disabled: sperre,
-                    onclick: function () { mitSperre(function () { return ctx.beamer.powerOn(); }, 'Einschalten angefordert'); }
-                }, [sperre ? 'wird eingeschaltet …' : 'Beamer einschalten'])
+                    onclick: function () { befehl(function () { return ctx.beamer.powerOn(); }, 'Einschalten angefordert'); }
+                }, ['Beamer einschalten'])
             );
         }
 
@@ -200,9 +242,9 @@ window.App.viewOperate = (function () {
                 ]),
                 el('button', {
                     class: 'streifen-knopf',
-                    disabled: sperre,
+                    disabled: laeuftBefehl(zustand),
                     onclick: function () {
-                        mitSperre(function () {
+                        befehl(function () {
                             return ctx.beamer.setMute({ video: false, audio: zustand.mute.audio });
                         }, 'Bild wieder eingeblendet');
                     }
@@ -210,7 +252,7 @@ window.App.viewOperate = (function () {
             ]));
         }
 
-        teile.push(statuszeile(zustand), quellenBereich(zustand), ausschaltKnopf());
+        teile.push(statuszeile(zustand), quellenBereich(zustand), ausschaltKnopf(zustand));
 
         return el('div', {}, teile);
     }
@@ -219,7 +261,15 @@ window.App.viewOperate = (function () {
         if (!wurzel) wurzel = document.getElementById('ansicht-operate');
         const zustand = ctx.beamer.getState();
         ui.clear(wurzel);
-        wurzel.appendChild(el('div', { class: 'ansicht-innen' }, [inhaltFuer(zustand)]));
+
+        // Ein gescheiterter Befehl erscheint als Streifen über der normalen
+        // Bedienung — sie bleibt benutzbar. Ein Bildschirm, aus dem man nur
+        // durch Neustart herauskommt, darf es hier nicht geben.
+        const teile = [];
+        if (zustand.commandError) teile.push(fehlerstreifen(zustand));
+        teile.push(inhaltFuer(zustand));
+
+        wurzel.appendChild(el('div', { class: 'ansicht-innen' }, teile));
     }
 
     return {
