@@ -112,10 +112,10 @@ ipcMain.handle('connect', async (event, { host, port, password }) => {
 // bedeuten aber Verschiedenes. Ohne diese Unterscheidung liest sich ein
 // Zeitablauf wie eine Feststellung über das Gerät.
 async function ermittleKlasse() {
-    let roh;
+    let antwort;
 
     try {
-        roh = await promisifyPJLinkCall(beamer.getClass.bind(beamer));
+        antwort = await promisifyPJLinkCall(beamer.getClass.bind(beamer));
     } catch (error) {
         return {
             pjlinkClass: 1,
@@ -124,17 +124,23 @@ async function ermittleKlasse() {
         };
     }
 
-    const klasse = parseInt(roh, 10);
-
-    if (klasse === 1 || klasse === 2) {
-        return { pjlinkClass: klasse, pjlinkClassSource: 'gemeldet', pjlinkClassDetail: String(roh) };
+    // getClass liefert {cls, raw}: die gelesene Klasse und den Wortlaut der
+    // Antwort. Das Herausklauben der Ziffer erledigt lib/command.js — dort
+    // sitzt auch die Nachsicht gegenüber Geräten, die statt "1" lieber
+    // "Class 1" antworten.
+    if (antwort && (antwort.cls === 1 || antwort.cls === 2)) {
+        return {
+            pjlinkClass: antwort.cls,
+            pjlinkClassSource: 'gemeldet',
+            pjlinkClassDetail: antwort.raw
+        };
     }
 
-    // Geantwortet hat er, aber mit etwas anderem als 1 oder 2.
+    // Geantwortet hat er, aber ohne erkennbare Klassenangabe.
     return {
         pjlinkClass: 1,
         pjlinkClassSource: 'unklar',
-        pjlinkClassDetail: roh === undefined ? 'leere Antwort' : String(roh)
+        pjlinkClassDetail: (antwort && antwort.raw) || 'leere Antwort'
     };
 }
 

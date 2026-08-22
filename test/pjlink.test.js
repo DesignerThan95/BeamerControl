@@ -168,3 +168,26 @@ test('ERR1 auf einen Class-2-Befehl lässt die Verbindung heil', async () => {
         assert.strictEqual(await rufen(beamer, 'getPowerState'), 1);
     }, { SNUM: 'ERR1' });
 });
+
+// Ein echter Optoma antwortet auf %1CLSS ? mit "Class 1" statt "1"
+// (nachgemessen: PJLINK 0 / %1CLSS=Class 1). Das muss über die ganze Kette
+// ankommen — response.js zerlegt so eine Antwort am Leerzeichen.
+test('die Klassenangabe kommt auch mit Wort davor an', async () => {
+    await mitBeamer(async function (beamer, fake) {
+        const erg = await rufen(beamer, 'getClass');
+        assert.strictEqual(fake.zeilen[0], '%1CLSS ?');
+        assert.deepStrictEqual(erg, { cls: 1, raw: 'Class 1' });
+    }, { CLSS: 'Class 1' });
+});
+
+test('ein Class-2-Gerät wird auch mit Wort davor erkannt', async () => {
+    await mitBeamer(async function (beamer) {
+        assert.deepStrictEqual(await rufen(beamer, 'getClass'), { cls: 2, raw: 'Class 2' });
+    }, { CLSS: 'Class 2' });
+});
+
+test('die spec-konforme Klassenangabe kommt unverändert an', async () => {
+    await mitBeamer(async function (beamer) {
+        assert.deepStrictEqual(await rufen(beamer, 'getClass'), { cls: 2, raw: '2' });
+    }, { CLSS: '2' });
+});

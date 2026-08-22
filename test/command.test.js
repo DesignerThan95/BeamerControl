@@ -198,3 +198,36 @@ test('kein Ersatzteil ergibt eine leere Liste', () => {
     const cmd = new Command.LampReplacementCommand(function () {});
     assert.deepStrictEqual(cmd.formatResult([]), [[]]);
 });
+
+// ---------- Klassenabfrage (CLSS) ----------
+
+// Die Spezifikation sieht auf %1CLSS ? nur die nackte Ziffer vor. Optoma
+// antwortet stattdessen "Class 1" — nachgemessen an einem echten Gerät.
+// response.js zerlegt am Leerzeichen, die Antwort kommt also als zwei Teile
+// an. Wer hier eine einzelne Ziffer erwartet, bekommt bei solchen Geräten
+// nichts Brauchbares.
+test('die spec-konforme Antwort wird gelesen', () => {
+    const cmd = new Command.ClassCommand(function () {});
+    assert.deepStrictEqual(cmd.formatResult(['1']), { cls: 1, raw: '1' });
+    assert.deepStrictEqual(cmd.formatResult(['2']), { cls: 2, raw: '2' });
+});
+
+test('die Optoma-Schreibweise mit Wort davor wird ebenso gelesen', () => {
+    const cmd = new Command.ClassCommand(function () {});
+    assert.deepStrictEqual(cmd.formatResult(['Class', '1']), { cls: 1, raw: 'Class 1' });
+    assert.deepStrictEqual(cmd.formatResult(['Class', '2']), { cls: 2, raw: 'Class 2' });
+});
+
+// Der Rohtext muss erhalten bleiben: nur damit lässt sich später im Protokoll
+// nachvollziehen, was das Gerät tatsächlich gesagt hat.
+test('eine unbrauchbare Antwort behält ihren Wortlaut', () => {
+    const cmd = new Command.ClassCommand(function () {});
+    assert.deepStrictEqual(cmd.formatResult(['Quatsch']), { cls: null, raw: 'Quatsch' });
+    assert.deepStrictEqual(cmd.formatResult([]), { cls: null, raw: '' });
+});
+
+// PJLink kennt nur Class 1 und 2. Alles andere ist keine Klassenangabe.
+test('eine Ziffer außerhalb von 1 und 2 gilt nicht als Klasse', () => {
+    const cmd = new Command.ClassCommand(function () {});
+    assert.deepStrictEqual(cmd.formatResult(['Class', '7']), { cls: null, raw: 'Class 7' });
+});
