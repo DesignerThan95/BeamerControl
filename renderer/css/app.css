@@ -232,8 +232,8 @@ input  { font: inherit; }
 .schritt.jetzt { background: var(--accent); border-color: var(--accent); color: #fff; }
 .schritt.fertig { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-text); }
 
-/* Sprachwahl in der Schrittleiste: rechts abgesetzt, damit sie die Schritte
-   nicht in eine Reihe mit sich zieht. */
+/* Language choice in the step bar: set off to the right so it does not drag
+   the step dots along with it. */
 .sprachwahl { margin-left: auto; display: flex; gap: 14px; align-items: center; }
 .sprachwahl .knopf.text { padding: 0; color: var(--text-dim); }
 .sprachwahl .knopf.text.aktiv { color: var(--accent-text); font-weight: 600; }

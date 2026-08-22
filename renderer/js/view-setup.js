@@ -1,92 +1,95 @@
-// Einrichtungsassistent. Läuft einmal, wenn keine gültigen Einstellungen da sind.
+// Setup wizard. Runs once, when there are no valid settings.
+//
+// The CSS class names stay German: they belong to app.css, which is not part
+// of this translation pass.
 window.App = window.App || {};
 window.App.viewSetup = (function () {
     const ui = window.App.ui;
     const el = ui.el;
     const t = window.App.i18n.t;
 
-    // Wie auf der Technik-Seite: Sprachnamen bleiben unübersetzt, sonst findet
-    // sie niemand wieder, der die eingestellte Sprache nicht lesen kann.
-    const SPRACHNAMEN = { de: 'Deutsch', en: 'English' };
+    // As on the technical page: language names stay untranslated, otherwise
+    // nobody who cannot read the current language would find their way back.
+    const LANGUAGE_NAMES = { de: 'Deutsch', en: 'English' };
 
     let ctx = null;
-    let wurzel = null;
+    let root = null;
 
-    let schritt = 1;
-    let suchlauf = { laeuft: false, checked: 0, total: 0, devices: [], fertig: false };
-    let auswahl = null;      // { host, port, name }
-    let passwort = '';
-    let pruefText = '';
-    let pruefArt = 'info';
-    let entwuerfe = [];      // Bildquellen im Aufbau
+    let step = 1;
+    let scan = { running: false, checked: 0, total: 0, devices: [], done: false };
+    let selection = null;    // { host, port, name }
+    let password = '';
+    let checkMessage = '';
+    let checkLevel = 'info';
+    let draftSources = [];   // picture sources being built up
 
-    function neuZeichnen() { render(); }
+    function redraw() { render(); }
 
-    // Die Sprachwahl steht in der Schrittleiste und damit auf jedem Schritt:
-    // wer die Einrichtung in der falschen Sprache vor sich hat, soll das
-    // sofort ändern können und nicht erst am Ende.
-    function sprachwahl() {
-        const gewaehlt = ctx.store.getLanguage();
+    // The language choice sits in the step bar and is therefore on every step:
+    // anyone facing the setup in the wrong language should be able to change it
+    // straight away, not only at the end.
+    function languageChoice() {
+        const chosen = ctx.store.getLanguage();
 
         return el('span', { class: 'sprachwahl' }, window.App.i18n.supportedLanguages().map(function (code) {
             return el('button', {
-                class: 'knopf text' + (gewaehlt === code ? ' aktiv' : ''),
-                text: SPRACHNAMEN[code] || code,
+                class: 'knopf text' + (chosen === code ? ' aktiv' : ''),
+                text: LANGUAGE_NAMES[code] || code,
                 onclick: function () { window.App.setLanguage(code); }
             });
         }));
     }
 
-    function schrittleiste() {
-        const punkte = [1, 2, 3, 4].map(function (n) {
-            let klasse = 'schritt';
-            if (n < schritt) klasse = 'schritt fertig';
-            else if (n === schritt) klasse = 'schritt jetzt';
-            return el('span', { class: klasse, text: n < schritt ? '✓' : String(n) });
+    function stepBar() {
+        const dots = [1, 2, 3, 4].map(function (n) {
+            let cssClass = 'schritt';
+            if (n < step) cssClass = 'schritt fertig';
+            else if (n === step) cssClass = 'schritt jetzt';
+            return el('span', { class: cssClass, text: n < step ? '✓' : String(n) });
         });
-        return el('div', { class: 'schritte' }, punkte.concat([
+        return el('div', { class: 'schritte' }, dots.concat([
             el('span', { class: 'feld-lab', text: t('setup.wizardLabel') }),
-            sprachwahl()
+            languageChoice()
         ]));
     }
 
-    // ---------- Schritt 1: finden ----------
+    // ---------- Step 1: find ----------
 
-    async function suchen() {
-        suchlauf = { laeuft: true, checked: 0, total: 0, devices: [], fertig: false };
-        neuZeichnen();
+    async function startScan() {
+        scan = { running: true, checked: 0, total: 0, devices: [], done: false };
+        redraw();
 
-        const ab = ctx.api.onScanProgress(function (p) {
-            suchlauf.checked = p.checked;
-            suchlauf.total = p.total;
-            suchlauf.devices = p.devices;
-            neuZeichnen();
+        const unsubscribe = ctx.api.onScanProgress(function (p) {
+            scan.checked = p.checked;
+            scan.total = p.total;
+            scan.devices = p.devices;
+            redraw();
         });
 
         try {
-            const erg = await ctx.api.scanNetwork();
-            suchlauf.devices = erg.devices;
-            ctx.log.add('Einrichtung: ' + erg.devices.length + ' Gerät(e) gefunden', 'info');
+            const result = await ctx.api.scanNetwork();
+            scan.devices = result.devices;
+            ctx.log.add('Setup: ' + result.devices.length + ' device(s) found', 'info');
         } catch (e) {
-            ctx.log.add('Einrichtung: Suche fehlgeschlagen — ' + e.message, 'fehler');
+            ctx.log.add('Setup: scan failed — ' + e.message, 'error');
         } finally {
-            ab();
-            suchlauf.laeuft = false;
-            suchlauf.fertig = true;
-            neuZeichnen();
+            unsubscribe();
+            scan.running = false;
+            scan.done = true;
+            redraw();
         }
     }
 
-    function selbstEingeben() {
-        auswahl = { host: '', port: 4352, name: null };
-        schritt = 2;
-        pruefText = '';
-        neuZeichnen();
+    function enterManually() {
+        selection = { host: '', port: 4352, name: null };
+        step = 2;
+        checkMessage = '';
+        redraw();
     }
 
-    function trefferliste() {
-        if (suchlauf.devices.length === 0) return null;
-        return el('div', { class: 'trefferliste' }, suchlauf.devices.map(function (d) {
+    function resultList() {
+        if (scan.devices.length === 0) return null;
+        return el('div', { class: 'trefferliste' }, scan.devices.map(function (d) {
             return el('div', { class: 'treffer' }, [
                 el('span', {}, [
                     el('strong', { text: d.name || t('common.pjlinkDevice') }),
@@ -95,31 +98,31 @@ window.App.viewSetup = (function () {
                 el('button', {
                     class: 'knopf text',
                     text: t('setup.select'),
-                    onclick: function () { auswahl = d; schritt = 2; pruefText = ''; neuZeichnen(); }
+                    onclick: function () { selection = d; step = 2; checkMessage = ''; redraw(); }
                 })
             ]);
         }));
     }
 
-    function schritt1() {
-        if (suchlauf.laeuft) {
-            const anteil = suchlauf.total ? Math.round((suchlauf.checked / suchlauf.total) * 100) : 0;
-            const balken = el('div', { class: 'balken' }, [el('i')]);
-            balken.firstChild.style.width = anteil + '%';
+    function step1() {
+        if (scan.running) {
+            const percent = scan.total ? Math.round((scan.checked / scan.total) * 100) : 0;
+            const bar = el('div', { class: 'balken' }, [el('i')]);
+            bar.firstChild.style.width = percent + '%';
 
             return el('div', {}, [
                 el('div', { class: 'assistent-titel', text: t('common.scanRunning') }),
                 el('div', { class: 'assistent-text', text: t('setup.scanDuration') }),
-                balken,
+                bar,
                 el('div', {
                     class: 'feld-lab',
-                    text: t('common.scanProgress', { checked: suchlauf.checked, total: suchlauf.total, found: suchlauf.devices.length })
+                    text: t('common.scanProgress', { checked: scan.checked, total: scan.total, found: scan.devices.length })
                 }),
-                trefferliste()
+                resultList()
             ]);
         }
 
-        if (suchlauf.fertig && suchlauf.devices.length === 0) {
+        if (scan.done && scan.devices.length === 0) {
             return el('div', {}, [
                 el('div', { class: 'assistent-titel', text: t('setup.noneFoundTitle') }),
                 el('div', { class: 'assistent-text', text: t('setup.noneFoundIntro') }),
@@ -130,25 +133,25 @@ window.App.viewSetup = (function () {
                     el('li', { text: t('setup.noneFoundReasonNetwork') })
                 ]),
                 el('div', { class: 'knopfzeile' }, [
-                    el('button', { class: 'knopf haupt', onclick: suchen }, [t('common.searchAgain')]),
-                    el('button', { class: 'knopf text', onclick: selbstEingeben }, [t('common.enterIpManually')])
+                    el('button', { class: 'knopf haupt', onclick: startScan }, [t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: enterManually }, [t('common.enterIpManually')])
                 ])
             ]);
         }
 
-        if (suchlauf.fertig) {
+        if (scan.done) {
             return el('div', {}, [
                 el('div', {
                     class: 'assistent-titel',
-                    text: suchlauf.devices.length === 1
+                    text: scan.devices.length === 1
                         ? t('setup.foundOne')
-                        : t('setup.foundMany', { count: suchlauf.devices.length })
+                        : t('setup.foundMany', { count: scan.devices.length })
                 }),
                 el('div', { class: 'assistent-text', text: t('setup.chooseDevice') }),
-                trefferliste(),
+                resultList(),
                 el('div', { class: 'knopfzeile' }, [
-                    el('button', { class: 'knopf', onclick: suchen }, [t('common.searchAgain')]),
-                    el('button', { class: 'knopf text', onclick: selbstEingeben }, [t('common.enterIpManually')])
+                    el('button', { class: 'knopf', onclick: startScan }, [t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: enterManually }, [t('common.enterIpManually')])
                 ])
             ]);
         }
@@ -157,112 +160,112 @@ window.App.viewSetup = (function () {
             el('div', { class: 'assistent-titel', text: t('setup.whereTitle') }),
             el('div', { class: 'assistent-text', text: t('setup.whereText') }),
             el('div', { class: 'knopfzeile' }, [
-                el('button', { class: 'knopf haupt', onclick: suchen }, [t('setup.searchProjectors')])
+                el('button', { class: 'knopf haupt', onclick: startScan }, [t('setup.searchProjectors')])
             ]),
-            el('button', { class: 'knopf text', onclick: selbstEingeben }, [t('setup.enterIpInstead')])
+            el('button', { class: 'knopf text', onclick: enterManually }, [t('setup.enterIpInstead')])
         ]);
     }
 
-    // ---------- Schritt 2: prüfen ----------
+    // ---------- Step 2: check ----------
 
-    async function eingaengeLaden() {
+    async function loadInputs() {
         try {
-            const erg = await ctx.api.getAvailableInputs();
-            entwuerfe = erg.inputs.map(function (i) {
-                return { code: i.code, label: window.App.viewOperate.anschlussName(i.code), visible: true };
+            const result = await ctx.api.getAvailableInputs();
+            draftSources = result.inputs.map(function (i) {
+                return { code: i.code, label: window.App.viewOperate.connectorName(i.code), visible: true };
             });
-            ctx.log.add('Einrichtung: ' + entwuerfe.length + ' Eingänge gelesen', 'ok');
+            ctx.log.add('Setup: ' + draftSources.length + ' inputs read', 'ok');
         } catch (e) {
-            entwuerfe = [];
-            ctx.log.add('Einrichtung: Eingänge nicht lesbar — ' + e.message, 'fehler');
+            draftSources = [];
+            ctx.log.add('Setup: inputs not readable — ' + e.message, 'error');
         }
     }
 
-    function schritt2() {
-        const hostFeld = el('input', { class: 'eingabe', value: auswahl.host, type: 'text', placeholder: t('common.hostPlaceholder') });
-        const passFeld = el('input', { class: 'eingabe', value: passwort, type: 'password', placeholder: t('common.passwordPlaceholder') });
+    function step2() {
+        const hostField = el('input', { class: 'eingabe', value: selection.host, type: 'text', placeholder: t('common.hostPlaceholder') });
+        const passwordField = el('input', { class: 'eingabe', value: password, type: 'password', placeholder: t('common.passwordPlaceholder') });
 
         return el('div', {}, [
             el('div', {
                 class: 'assistent-titel',
-                text: auswahl.name ? t('setup.deviceFound', { name: auswahl.name }) : t('setup.enterIpTitle')
+                text: selection.name ? t('setup.deviceFound', { name: selection.name }) : t('setup.enterIpTitle')
             }),
             el('div', { class: 'assistent-text', text: t('setup.passwordHint') }),
             el('div', { class: 'felder' }, [
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.ipAddress') }), hostFeld]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.port') }), el('input', { class: 'eingabe', value: String(auswahl.port || 4352), type: 'number', disabled: true })]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.password') }), passFeld])
+                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.ipAddress') }), hostField]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.port') }), el('input', { class: 'eingabe', value: String(selection.port || 4352), type: 'number', disabled: true })]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.password') }), passwordField])
             ]),
-            pruefText ? el('div', { class: 'knopfzeile' }, [
-                el('span', { class: 'verbindungsstand' }, [el('span', { class: 'punkt' + (pruefArt === 'ok' ? ' an' : '') }), pruefText])
+            checkMessage ? el('div', { class: 'knopfzeile' }, [
+                el('span', { class: 'verbindungsstand' }, [el('span', { class: 'punkt' + (checkLevel === 'ok' ? ' an' : '') }), checkMessage])
             ]) : null,
             el('div', { class: 'knopfzeile' }, [
                 el('button', {
                     class: 'knopf haupt',
                     onclick: async function () {
-                        auswahl.host = hostFeld.value.trim();
-                        passwort = passFeld.value.trim();
-                        if (!auswahl.host) {
-                            pruefText = t('setup.ipRequired');
-                            pruefArt = 'fehler';
-                            neuZeichnen();
+                        selection.host = hostField.value.trim();
+                        password = passwordField.value.trim();
+                        if (!selection.host) {
+                            checkMessage = t('setup.ipRequired');
+                            checkLevel = 'error';
+                            redraw();
                             return;
                         }
-                        pruefText = t('common.connecting');
-                        pruefArt = 'info';
-                        neuZeichnen();
+                        checkMessage = t('common.connecting');
+                        checkLevel = 'info';
+                        redraw();
                         try {
-                            await ctx.api.connect({ host: auswahl.host, port: auswahl.port || 4352, password: passwort || null });
-                            ctx.store.setConnection({ host: auswahl.host, port: auswahl.port || 4352, password: passwort || null });
+                            await ctx.api.connect({ host: selection.host, port: selection.port || 4352, password: password || null });
+                            ctx.store.setConnection({ host: selection.host, port: selection.port || 4352, password: password || null });
                             await ctx.store.save();
-                            await eingaengeLaden();
-                            schritt = 3;
+                            await loadInputs();
+                            step = 3;
                         } catch (e) {
-                            pruefText = t('common.connectionFailed', { message: e.message });
-                            pruefArt = 'fehler';
+                            checkMessage = t('common.connectionFailed', { message: e.message });
+                            checkLevel = 'error';
                         }
-                        neuZeichnen();
+                        redraw();
                     }
                 }, [t('common.next')]),
-                el('button', { class: 'knopf', onclick: function () { schritt = 1; pruefText = ''; neuZeichnen(); } }, [t('setup.backToSearch')])
+                el('button', { class: 'knopf', onclick: function () { step = 1; checkMessage = ''; redraw(); } }, [t('setup.backToSearch')])
             ])
         ]);
     }
 
-    // ---------- Schritt 3: benennen ----------
+    // ---------- Step 3: name ----------
 
-    async function quellenUebernehmen() {
-        ctx.store.setSources(entwuerfe);
+    async function applySources() {
+        ctx.store.setSources(draftSources);
         await ctx.store.save();
-        schritt = 4;
-        neuZeichnen();
+        step = 4;
+        redraw();
     }
 
-    function schritt3() {
-        const weiter = el('button', { class: 'knopf haupt', onclick: quellenUebernehmen }, [t('common.next')]);
+    function step3() {
+        const nextButton = el('button', { class: 'knopf haupt', onclick: applySources }, [t('common.next')]);
 
-        if (entwuerfe.length === 0) {
+        if (draftSources.length === 0) {
             return el('div', {}, [
                 el('div', { class: 'assistent-titel', text: t('setup.noInputsTitle') }),
                 el('div', { class: 'assistent-text', text: t('setup.noInputsText') }),
-                el('div', { class: 'knopfzeile' }, [weiter])
+                el('div', { class: 'knopfzeile' }, [nextButton])
             ]);
         }
 
-        const zeilen = entwuerfe.map(function (q, i) {
+        const rows = draftSources.map(function (q, i) {
             return el('div', { class: 'quellzeile' }, [
                 el('span'),
-                el('span', { class: 'quellcode', text: q.code + ' · ' + window.App.viewOperate.anschlussName(q.code) }),
+                el('span', { class: 'quellcode', text: q.code + ' · ' + window.App.viewOperate.connectorName(q.code) }),
                 el('input', {
                     class: 'eingabe',
                     value: q.label,
-                    onchange: function (e) { entwuerfe[i].label = e.target.value; }
+                    onchange: function (e) { draftSources[i].label = e.target.value; }
                 }),
                 el('span', { class: 'haken' }, [
                     el('input', {
                         type: 'checkbox',
                         checked: q.visible,
-                        onchange: function (e) { entwuerfe[i].visible = e.target.checked; }
+                        onchange: function (e) { draftSources[i].visible = e.target.checked; }
                     })
                 ])
             ]);
@@ -277,30 +280,30 @@ window.App.viewSetup = (function () {
                 el('span', { text: t('setup.nameColumn') }),
                 el('span', { class: 'haken', text: t('setup.showColumn') })
             ])
-        ].concat(zeilen).concat([
-            el('div', { class: 'knopfzeile' }, [weiter])
+        ].concat(rows).concat([
+            el('div', { class: 'knopfzeile' }, [nextButton])
         ]));
     }
 
-    // ---------- Schritt 4: fertig ----------
+    // ---------- Step 4: done ----------
 
-    function schritt4() {
-        const sichtbar = ctx.store.get().sources.filter(function (s) { return s.visible; });
-        const quellentext = sichtbar.length
-            ? t('setup.doneSourceCount', { count: sichtbar.length })
+    function step4() {
+        const visible = ctx.store.get().sources.filter(function (s) { return s.visible; });
+        const sourceText = visible.length
+            ? t('setup.doneSourceCount', { count: visible.length })
             : t('setup.doneNoSources');
 
         return el('div', {}, [
             el('div', { class: 'assistent-titel', text: t('setup.doneTitle') }),
-            el('div', { class: 'assistent-text', text: t('setup.doneText', { sources: quellentext }) }),
+            el('div', { class: 'assistent-text', text: t('setup.doneText', { sources: sourceText }) }),
             el('div', { class: 'knopfzeile' }, [
                 el('button', {
                     class: 'knopf haupt',
                     onclick: async function () {
                         ctx.store.markSetupComplete();
                         await ctx.store.save();
-                        ctx.beamer.start();
-                        ctx.beamer.refreshNow();
+                        ctx.projector.start();
+                        ctx.projector.refreshNow();
                         window.App.showView('operate');
                     }
                 }, [t('setup.toOperate')])
@@ -309,37 +312,37 @@ window.App.viewSetup = (function () {
     }
 
     function render() {
-        if (!wurzel) wurzel = document.getElementById('ansicht-setup');
-        ui.clear(wurzel);
-        let inhalt;
-        if (schritt === 1) inhalt = schritt1();
-        else if (schritt === 2) inhalt = schritt2();
-        else if (schritt === 3) inhalt = schritt3();
-        else inhalt = schritt4();
-        wurzel.appendChild(el('div', { class: 'ansicht-innen' }, [schrittleiste(), inhalt]));
+        if (!root) root = document.getElementById('ansicht-setup');
+        ui.clear(root);
+        let content;
+        if (step === 1) content = step1();
+        else if (step === 2) content = step2();
+        else if (step === 3) content = step3();
+        else content = step4();
+        root.appendChild(el('div', { class: 'ansicht-innen' }, [stepBar(), content]));
     }
 
     return {
         init: function (c) {
             ctx = c;
-            // Wurde die Verbindung schon gespeichert, aber die Einrichtung nicht
-            // beendet, geht es beim Prüfen weiter statt wieder beim Suchen.
-            const verb = ctx.store.get().connection;
-            if (verb.host) {
-                auswahl = { host: verb.host, port: verb.port, name: null };
-                passwort = verb.password || '';
-                schritt = 2;
+            // If the connection was already saved but the setup was not
+            // finished, it carries on at the checking step instead of the search.
+            const connection = ctx.store.get().connection;
+            if (connection.host) {
+                selection = { host: connection.host, port: connection.port, name: null };
+                password = connection.password || '';
+                step = 2;
             }
         },
 
-        // Wird von der Technik-Seite gerufen, wenn jemand neu einrichten will.
-        neuBeginnen: function () {
-            schritt = 1;
-            suchlauf = { laeuft: false, checked: 0, total: 0, devices: [], fertig: false };
-            auswahl = null;
-            passwort = '';
-            pruefText = '';
-            entwuerfe = [];
+        // Called by the technical page when someone wants to set up again.
+        restart: function () {
+            step = 1;
+            scan = { running: false, checked: 0, total: 0, devices: [], done: false };
+            selection = null;
+            password = '';
+            checkMessage = '';
+            draftSources = [];
         },
 
         render: render

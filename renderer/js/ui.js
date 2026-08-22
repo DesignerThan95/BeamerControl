@@ -1,86 +1,90 @@
-// Winzige DOM-Helfer und der Bestätigungsdialog. Kein Zustand, keine Netzwerklogik.
+// Tiny DOM helpers and the confirmation dialog. No state, no network logic.
 window.App = window.App || {};
 window.App.ui = (function () {
     const t = window.App.i18n.t;
 
-    // el('div', {class:'x', onclick:fn}, ['Text', andererKnoten])
-    function el(tag, attrs, kinder) {
-        const knoten = document.createElement(tag);
+    // el('div', {class:'x', onclick:fn}, ['Text', otherNode])
+    function el(tag, attrs, children) {
+        const node = document.createElement(tag);
         if (attrs) {
             Object.keys(attrs).forEach(function (k) {
                 const v = attrs[k];
                 if (v === null || v === undefined || v === false) return;
                 if (k.indexOf('on') === 0 && typeof v === 'function') {
-                    knoten.addEventListener(k.slice(2), v);
+                    node.addEventListener(k.slice(2), v);
                 } else if (k === 'text') {
-                    knoten.textContent = v;
+                    node.textContent = v;
                 } else if (k === 'checked' || k === 'disabled' || k === 'draggable') {
-                    knoten[k] = v;
+                    node[k] = v;
                 } else if (k === 'value') {
-                    knoten.value = v;
+                    node.value = v;
                 } else {
-                    knoten.setAttribute(k, v);
+                    node.setAttribute(k, v);
                 }
             });
         }
-        (kinder || []).forEach(function (kind) {
-            if (kind === null || kind === undefined || kind === false) return;
-            knoten.appendChild(typeof kind === 'string' ? document.createTextNode(kind) : kind);
+        (children || []).forEach(function (child) {
+            if (child === null || child === undefined || child === false) return;
+            node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
         });
-        return knoten;
+        return node;
     }
 
     function clear(node) {
         while (node.firstChild) node.removeChild(node.firstChild);
     }
 
-    // Eigener Dialog statt confirm(): passt zum Erscheinungsbild und blockiert nicht.
+    // Our own dialog instead of confirm(): it matches the look and does not block.
     function confirmDialog(opt) {
         return new Promise(function (resolve) {
-            const schliessen = function (antwort) {
-                document.body.removeChild(grund);
-                document.removeEventListener('keydown', taste);
-                resolve(antwort);
+            const close = function (answer) {
+                document.body.removeChild(backdrop);
+                document.removeEventListener('keydown', onKey);
+                resolve(answer);
             };
-            const taste = function (e) {
-                if (e.key === 'Escape') schliessen(false);
-                if (e.key === 'Enter') schliessen(true);
+            const onKey = function (e) {
+                if (e.key === 'Escape') close(false);
+                if (e.key === 'Enter') close(true);
             };
 
             const box = el('div', { class: 'dialog' }, [
-                el('h2', { text: opt.titel }),
+                el('h2', { text: opt.title }),
                 el('p', { text: opt.text }),
                 el('div', { class: 'dialog-knoepfe' }, [
-                    el('button', { class: 'knopf', text: opt.abbrechen || t('common.cancel'), onclick: function () { schliessen(false); } }),
-                    el('button', { class: 'knopf haupt', text: opt.bestaetigen || t('common.yes'), onclick: function () { schliessen(true); } })
+                    el('button', { class: 'knopf', text: opt.cancel || t('common.cancel'), onclick: function () { close(false); } }),
+                    el('button', { class: 'knopf haupt', text: opt.confirm || t('common.yes'), onclick: function () { close(true); } })
                 ])
             ]);
 
-            const grund = el('div', { class: 'dialog-grund', onclick: function (e) { if (e.target === grund) schliessen(false); } }, [box]);
-            document.body.appendChild(grund);
-            document.addEventListener('keydown', taste);
+            const backdrop = el('div', { class: 'dialog-grund', onclick: function (e) { if (e.target === backdrop) close(false); } }, [box]);
+            document.body.appendChild(backdrop);
+            document.addEventListener('keydown', onKey);
         });
     }
 
     return { el: el, clear: clear, confirmDialog: confirmDialog };
 })();
 
-// Protokoll: sammelt Meldungen für die Technik-Seite. Erscheint nie in der Bedienung.
+// Activity log: collects messages for the technical page. Never appears in the
+// controls, and stays English — it is written for whoever maintains the
+// installation, not for the congregation.
 window.App.log = (function () {
-    const eintraege = [];
-    let hoerer = [];
+    const entries = [];
+    let listeners = [];
 
     return {
-        add: function (text, art) {
-            eintraege.push({
-                zeit: new Date().toLocaleTimeString('de-DE'),
+        // level is 'ok', 'info' or 'error'.
+        add: function (text, level) {
+            entries.push({
+                // 'de-DE' is picked for its 24-hour clock, not for its language.
+                time: new Date().toLocaleTimeString('de-DE'),
                 text: text,
-                art: art || 'info'
+                level: level || 'info'
             });
-            while (eintraege.length > 200) eintraege.shift();
-            hoerer.forEach(function (fn) { fn(); });
+            while (entries.length > 200) entries.shift();
+            listeners.forEach(function (fn) { fn(); });
         },
-        all: function () { return eintraege.slice(); },
-        onChange: function (fn) { hoerer.push(fn); }
+        all: function () { return entries.slice(); },
+        onChange: function (fn) { listeners.push(fn); }
     };
 })();

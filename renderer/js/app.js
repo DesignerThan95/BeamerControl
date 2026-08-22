@@ -1,4 +1,4 @@
-// Verdrahtet Einstellungen, Beamer-Zustand, Erscheinungsbild und die drei Ansichten.
+// Wires up settings, projector state, appearance, language and the three views.
 window.App = window.App || {};
 
 (function (App) {
@@ -12,65 +12,65 @@ window.App = window.App || {};
     });
 
     const theme = App.theme.createTheme(store);
-    let muteHinweisGezeigt = false;
+    let muteHintLogged = false;
 
-    // Das Protokoll ist für die Technik gedacht und bleibt englisch — auch
-    // die Namen der Zusatzfunktionen darin. Sonst stünde in einer englischen
-    // Zeile plötzlich ein deutsches Wort.
+    // The activity log is meant for the technical staff and stays English —
+    // including the names of the extra features in it. Otherwise an English
+    // line would suddenly carry a German word.
     function featureName(key) {
         return i18n.t('tech.features.' + key + '.title', null, i18n.FALLBACK_LANGUAGE);
     }
 
-    // Kennt der Beamer einen Class-2-Befehl nicht, antwortet er mit ERR1.
-    // Dann wird die zugehörige Funktion dauerhaft abgeschaltet, statt bei
-    // jedem Druck dieselbe Fehlermeldung zu erzeugen. Das Ergebnis wird
-    // ausgepackt, damit der Rest der App nur den Wert sieht.
+    // If the projector does not know a Class 2 command, it answers with ERR1.
+    // The feature is then switched off for good instead of producing the same
+    // error message on every press. The result is unwrapped so the rest of the
+    // app only sees the value.
     async function class2(key, fn) {
-        const erg = await fn();
-        if (erg && erg.supported === false) {
-            const rest = store.get().enabledClass2Features.filter(function (k) { return k !== key; });
-            store.setClass2Features(rest);
+        const result = await fn();
+        if (result && result.supported === false) {
+            const remaining = store.get().enabledClass2Features.filter(function (k) { return k !== key; });
+            store.setClass2Features(remaining);
             await store.save();
-            log.add('Der Beamer kennt „' + featureName(key) + '" nicht — die Funktion wurde abgeschaltet.', 'info');
-            zeichnen();
+            log.add('The projector does not know "' + featureName(key) + '" — the feature has been switched off.', 'info');
+            render();
             throw new Error('Undefined command');
         }
-        return erg ? erg.value : undefined;
+        return result ? result.value : undefined;
     }
 
     App.class2 = class2;
 
-    // Was der Beamer zuletzt über seinen PJLink-Stand gesagt hat. Nur um
-    // dieselbe Meldung nicht bei jedem Verbindungsversuch zu wiederholen.
-    let klassenMeldung = null;
+    // What the projector last said about its PJLink level. Only so the same
+    // message is not repeated on every connection attempt.
+    let lastClassMessage = null;
 
-    // „Class 1" kann zweierlei heißen: der Beamer hat es gesagt, oder die
-    // Frage blieb offen. Das gehört ins Protokoll, sonst liest sich ein
-    // Zeitablauf später wie eine Feststellung über das Gerät.
-    function protokolliereKlasse(erg) {
-        if (!erg || typeof erg.pjlinkClass !== 'number') return;
+    // "Class 1" can mean two things: the projector said so, or the question
+    // went unanswered. That belongs in the activity log, otherwise a timeout
+    // later reads like a finding about the device.
+    function logProjectorClass(result) {
+        if (!result || typeof result.pjlinkClass !== 'number') return;
 
-        const kennung = erg.pjlinkClassSource + '|' + erg.pjlinkClass + '|' + (erg.pjlinkClassDetail || '');
-        if (kennung === klassenMeldung) return;
-        klassenMeldung = kennung;
+        const signature = result.pjlinkClassSource + '|' + result.pjlinkClass + '|' + (result.pjlinkClassDetail || '');
+        if (signature === lastClassMessage) return;
+        lastClassMessage = signature;
 
-        if (erg.pjlinkClassSource === 'gemeldet') {
-            log.add('Der Beamer meldet PJLink Class ' + erg.pjlinkClass + '.', 'ok');
-        } else if (erg.pjlinkClassSource === 'unbeantwortet') {
-            log.add('Die Frage nach dem PJLink-Stand (CLSS) blieb unbeantwortet: ' + erg.pjlinkClassDetail + '. Es gelten vorsichtshalber die Regeln von Class 1 — ob der Beamer wirklich nur Class 1 kann, ist damit nicht gesagt.', 'fehler');
-        } else if (erg.pjlinkClassSource === 'unklar') {
-            log.add('Auf die Frage nach dem PJLink-Stand (CLSS) kam „' + erg.pjlinkClassDetail + '" zurück — damit lässt sich nichts anfangen. Es gelten vorsichtshalber die Regeln von Class 1.', 'fehler');
+        if (result.pjlinkClassSource === 'reported') {
+            log.add('The projector reports PJLink Class ' + result.pjlinkClass + '.', 'ok');
+        } else if (result.pjlinkClassSource === 'unanswered') {
+            log.add('The question about the PJLink level (CLSS) went unanswered: ' + result.pjlinkClassDetail + '. The Class 1 rules apply as a precaution — that does not mean the projector is really limited to Class 1.', 'error');
+        } else if (result.pjlinkClassSource === 'unclear') {
+            log.add('The question about the PJLink level (CLSS) came back as "' + result.pjlinkClassDetail + '" — nothing can be made of that. The Class 1 rules apply as a precaution.', 'error');
         }
     }
 
-    const beamer = App.beamer.createBeamer({
+    const projector = App.projector.createProjector({
         isFeatureEnabled: function (key) { return store.isClass2FeatureEnabled(key); },
         api: {
             connect: async function () {
                 const c = store.get().connection;
-                const erg = await api.connect({ host: c.host, port: c.port, password: c.password });
-                protokolliereKlasse(erg);
-                return erg;
+                const result = await api.connect({ host: c.host, port: c.port, password: c.password });
+                logProjectorClass(result);
+                return result;
             },
             getPowerState: api.getPowerState,
             getCurrentInput: api.getCurrentInput,
@@ -79,20 +79,20 @@ window.App = window.App || {};
             powerOff: api.powerOff,
             setInput: api.setInput,
             setMute: async function (m) {
-                const erg = await api.setMute(m);
-                // Kann der Beamer Bild und Ton nur gemeinsam stummschalten,
-                // gehört das ins Protokoll — sonst wundert sich die Technik,
-                // warum beide Schalter gemeinsam umspringen.
-                if (erg && erg.mode === 'gemeinsam' && !muteHinweisGezeigt) {
-                    muteHinweisGezeigt = true;
-                    log.add('Dieser Beamer kann Bild und Ton nur gemeinsam stummschalten — beide Schalter wirken deshalb zusammen.', 'info');
+                const result = await api.setMute(m);
+                // If the projector can only mute picture and sound together,
+                // that belongs in the activity log — otherwise the technical
+                // staff wonder why both switches move at once.
+                if (result && result.mode === 'combined' && !muteHintLogged) {
+                    muteHintLogged = true;
+                    log.add('This projector can only mute picture and sound together — both switches therefore act as one.', 'info');
                 }
-                return erg;
+                return result;
             },
 
             // ---- PJLink Class 2 ----
             getFreeze: function () { return class2('freeze', function () { return api.getFreeze(); }); },
-            setFreeze: function (an) { return class2('freeze', function () { return api.setFreeze(an); }); },
+            setFreeze: function (on) { return class2('freeze', function () { return api.setFreeze(on); }); },
             speakerVolumeUp: function () { return class2('volume', function () { return api.speakerVolume('up'); }); },
             speakerVolumeDown: function () { return class2('volume', function () { return api.speakerVolume('down'); }); },
             microphoneVolumeUp: function () { return class2('volume', function () { return api.microphoneVolume('up'); }); },
@@ -103,30 +103,30 @@ window.App = window.App || {};
         now: function () { return Date.now(); }
     });
 
-    let aktiveAnsicht = null;
+    let activeView = null;
 
     function showView(name) {
-        aktiveAnsicht = name;
+        activeView = name;
         ['operate', 'tech', 'setup'].forEach(function (n) {
-            const knoten = document.getElementById('ansicht-' + n);
-            knoten.classList.toggle('aktiv', n === name);
+            const node = document.getElementById('ansicht-' + n);
+            node.classList.toggle('aktiv', n === name);
         });
         document.getElementById('technikKnopf').style.display = (name === 'setup') ? 'none' : '';
-        zeichnen();
+        render();
     }
 
-    function zeichnen() {
-        if (aktiveAnsicht === 'operate' && App.viewOperate) App.viewOperate.render();
-        if (aktiveAnsicht === 'tech' && App.viewTech) App.viewTech.render();
-        if (aktiveAnsicht === 'setup' && App.viewSetup) App.viewSetup.render();
+    function render() {
+        if (activeView === 'operate' && App.viewOperate) App.viewOperate.render();
+        if (activeView === 'tech' && App.viewTech) App.viewTech.render();
+        if (activeView === 'setup' && App.viewSetup) App.viewSetup.render();
     }
 
-    // ---------- Sprache ----------
+    // ---------- Language ----------
 
-    // Welche Sprache das Betriebssystem meldet. Kommt keine brauchbare Antwort,
-    // bleibt es bei der Rückfallsprache — eine fehlende Auskunft darf die App
-    // nicht am Starten hindern.
-    async function betriebssystemSprache() {
+    // Which language the operating system reports. If no usable answer comes
+    // back, the fallback language stands — a missing answer must not keep the
+    // app from starting.
+    async function osLanguage() {
         try {
             return await api.getOsLocale();
         } catch (e) {
@@ -134,75 +134,75 @@ window.App = window.App || {};
         }
     }
 
-    // Eine ausdrücklich gewählte Sprache sticht das Betriebssystem — bei jedem
-    // weiteren Start, bis sie wieder geändert wird. null heißt: keine Wahl
-    // getroffen, dann entscheidet das Betriebssystem.
-    async function spracheAnwenden(wahl) {
-        i18n.setLanguage(wahl || await betriebssystemSprache());
-        kopfzeileBeschriften();
+    // An explicitly chosen language beats the operating system, on every
+    // further start, until it is changed again. null means: no choice made,
+    // then the operating system decides.
+    async function applyLanguage(choice) {
+        i18n.setLanguage(choice || await osLanguage());
+        labelHeader();
     }
 
-    // Die Kopfzeile steht als festes Gerüst in index.html und wird deshalb
-    // nicht mitgezeichnet — sie muss eigens nachgezogen werden.
-    function kopfzeileBeschriften() {
-        const titel = i18n.t('common.appTitle');
+    // The header is fixed scaffolding in index.html and therefore not redrawn
+    // with the views — it has to be caught up separately.
+    function labelHeader() {
+        const title = i18n.t('common.appTitle');
         document.documentElement.lang = i18n.getCurrentLanguage();
-        document.title = titel;
-        document.querySelector('.kopf-titel').textContent = titel;
+        document.title = title;
+        document.querySelector('.kopf-titel').textContent = title;
         document.getElementById('themaKnopf').title = i18n.t('common.toggleThemeTitle');
         document.getElementById('technikKnopf').title = i18n.t('common.techTitle');
     }
 
     App.showView = showView;
-    App.ctx = { store: store, beamer: beamer, theme: theme, api: api, log: log };
+    App.ctx = { store: store, projector: projector, theme: theme, api: api, log: log };
 
-    // Wird von der Technik-Seite und vom Einrichtungsassistenten gerufen.
-    App.setLanguage = async function (wahl) {
-        store.setLanguage(wahl);
+    // Called by the technical page and by the setup wizard.
+    App.setLanguage = async function (choice) {
+        store.setLanguage(choice);
         await store.save();
-        await spracheAnwenden(wahl);
-        log.add('Sprache auf ' + i18n.getCurrentLanguage() + ' gestellt' + (wahl ? '' : ' (Betriebssystem)'), 'info');
-        zeichnen();
+        await applyLanguage(choice);
+        log.add('Language set to ' + i18n.getCurrentLanguage() + (choice ? '' : ' (operating system)'), 'info');
+        render();
     };
 
     async function start() {
         await store.load();
-        await spracheAnwenden(store.getLanguage());
-        theme.init(function () { zeichnen(); });
+        await applyLanguage(store.getLanguage());
+        theme.init(function () { render(); });
 
         if (App.viewOperate) App.viewOperate.init(App.ctx);
         if (App.viewTech) App.viewTech.init(App.ctx);
         if (App.viewSetup) App.viewSetup.init(App.ctx);
 
         document.getElementById('themaKnopf').addEventListener('click', async function () {
-            const neu = await theme.toggleAsync();
-            log.add('Erscheinungsbild auf ' + (neu === 'dark' ? 'dunkel' : 'hell') + ' gestellt', 'info');
-            zeichnen();
+            const next = await theme.toggleAsync();
+            log.add('Appearance set to ' + (next === 'dark' ? 'dark' : 'light'), 'info');
+            render();
         });
 
         document.getElementById('technikKnopf').addEventListener('click', function () {
-            showView(aktiveAnsicht === 'tech' ? 'operate' : 'tech');
+            showView(activeView === 'tech' ? 'operate' : 'tech');
         });
 
-        beamer.onChange(function () {
-            // Nur die Bedienung folgt dem Beamer. Die Technik-Seite würde sonst
-            // mitten im Tippen neu gezeichnet und der Fokus ginge verloren.
-            if (aktiveAnsicht === 'operate') zeichnen();
+        projector.onChange(function () {
+            // Only the controls follow the projector. The technical page would
+            // otherwise be redrawn mid-typing and the focus would be lost.
+            if (activeView === 'operate') render();
         });
 
         if (!store.isSetupComplete()) {
-            log.add('Keine gültigen Einstellungen gefunden — Einrichtung wird gestartet', 'info');
+            log.add('No valid settings found — starting setup', 'info');
             showView('setup');
             return;
         }
 
-        // Erst zeigen, dann verbinden: der Verbindungsaufbau kann Sekunden dauern,
-        // und ein leeres Fenster ist das Schlimmste, was hier stehen kann.
-        // Den Aufbau übernimmt die Zustandsmaschine selbst.
+        // Show first, connect second: building the connection can take seconds,
+        // and an empty window is the worst thing that could stand here.
+        // The state machine takes care of connecting by itself.
         const c = store.get().connection;
-        log.add('Verbinde mit ' + c.host + ':' + c.port, 'info');
+        log.add('Connecting to ' + c.host + ':' + c.port, 'info');
         showView('operate');
-        beamer.start();
+        projector.start();
     }
 
     window.addEventListener('load', start);

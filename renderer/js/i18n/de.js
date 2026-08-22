@@ -38,7 +38,7 @@
         },
 
         operate: {
-            // Die PJLink-Rohnamen (RGB, DIGITAL, …) sagen niemandem etwas.
+            // The raw PJLink names (RGB, DIGITAL, …) mean nothing to anyone.
             connector: {
                 vga: 'VGA',
                 video: 'Video',
@@ -49,8 +49,8 @@
             },
             connectorName: '{type} {channel}',
 
-            // Die PJLink-Bibliothek liefert englische Rohtexte. Auf dem
-            // Bedien-Bildschirm darf nichts davon stehen.
+            // The PJLink library hands us raw English wording. None of it
+            // belongs on the operating screen.
             errors: {
                 undefinedCommand: 'Der Beamer kennt diesen Befehl nicht.',
                 outOfParameter: 'Der Beamer hat diese Einstellung nicht angenommen.',

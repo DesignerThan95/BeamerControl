@@ -1,19 +1,19 @@
-// main.js für Electron Desktop App
+// main.js for the Electron desktop app
 const { app, BrowserWindow, ipcMain, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const net = require('net');
-const PJLink = require('./index'); // PJLink Library
-// Nur wegen der Sprachnormalisierung: welche Sprachen es gibt, weiß der
-// Übersetzungs-Helfer — und nur dort soll diese Liste stehen.
+const PJLink = require('./index'); // PJLink library
+// Only for normalizing the language: which languages exist is the translation
+// helper's business, and that list should live nowhere else.
 const i18n = require('./renderer/js/i18n');
 
 let mainWindow;
-let beamer = null;
+let projector = null;
 
-// Speicherort für die letzten Einstellungen (im Benutzerprofil, nicht im App-Ordner,
-// damit es auch nach einem App-Update erhalten bleibt)
+// Where the last settings are kept (in the user profile, not in the app folder,
+// so they survive an app update)
 const settingsPath = path.join(app.getPath('userData'), 'beamer-settings.json');
 
 function loadSettingsFromDisk() {
@@ -21,7 +21,7 @@ function loadSettingsFromDisk() {
         const raw = fs.readFileSync(settingsPath, 'utf-8');
         return JSON.parse(raw);
     } catch (error) {
-        return null; // Noch keine gespeicherten Einstellungen vorhanden
+        return null; // No saved settings yet
     }
 }
 
@@ -42,18 +42,18 @@ function createWindow() {
 
     mainWindow.loadFile('renderer/index.html');
 
-    // Optional: Entwicklertools ausblenden für Produktionsumgebung
+    // Optional: hide the developer tools in production
     // mainWindow.webContents.openDevTools();
 }
 
 app.whenReady().then(createWindow);
 
-// Auch auf macOS vollständig beenden: Das hier ist ein Bediengerät für einen
-// Beamer, kein Dokumentenprogramm — ein unsichtbar weiterlaufendes Programm im
-// Dock verwirrt mehr, als es nützt.
+// Quit completely on macOS as well: this is an operating device for a
+// projector, not a document program — a program that keeps running invisibly
+// in the dock confuses more than it helps.
 app.on('window-all-closed', () => {
-    if (beamer) {
-        beamer.disconnect();
+    if (projector) {
+        projector.disconnect();
     }
     app.quit();
 });
@@ -64,7 +64,7 @@ app.on('activate', () => {
     }
 });
 
-// Helper function für Promise-basierte PJLink Calls
+// Helper function for promise-based PJLink calls
 function promisifyPJLinkCall(method, ...args) {
     return new Promise((resolve, reject) => {
         const callback = (err, ...results) => {
@@ -75,289 +75,288 @@ function promisifyPJLinkCall(method, ...args) {
             }
         };
 
-        method.call(beamer, ...args, callback);
+        method.call(projector, ...args, callback);
     });
 }
 
-// IPC Handlers für PJLink Funktionen
+// IPC handlers for the PJLink functions
 ipcMain.handle('connect', async (event, { host, port, password }) => {
     try {
-        // Ohne Zeitablauf hängt ein nicht erreichbarer Host bis zum
-        // Betriebssystem-Timeout (über eine Minute) und die Oberfläche steht still.
-        beamer = new PJLink({ host, port, password: password || null, timeout: 6000 });
+        // Without a timeout, an unreachable host hangs until the operating
+        // system gives up (over a minute) and the interface stands still.
+        projector = new PJLink({ host, port, password: password || null, timeout: 6000 });
 
         // Test connection
-        await promisifyPJLinkCall(beamer.getPowerState.bind(beamer));
+        await promisifyPJLinkCall(projector.getPowerState.bind(projector));
 
-        const klasse = await ermittleKlasse();
+        const projectorClass = await determineClass();
 
         return {
             success: true,
-            message: 'Verbunden',
-            pjlinkClass: klasse.pjlinkClass,
-            pjlinkClassSource: klasse.pjlinkClassSource,
-            pjlinkClassDetail: klasse.pjlinkClassDetail
+            message: 'Connected',
+            pjlinkClass: projectorClass.pjlinkClass,
+            pjlinkClassSource: projectorClass.pjlinkClassSource,
+            pjlinkClassDetail: projectorClass.pjlinkClassDetail
         };
     } catch (error) {
-        beamer = null;
-        throw new Error(error.message || 'Verbindung fehlgeschlagen');
+        projector = null;
+        throw new Error(error.message || 'Connection failed');
     }
 });
 
-// Welchen PJLink-Stand meldet der Beamer? Class 2 kennt die Zusatzbefehle
-// (Lautstärke, Standbild, Wartungswerte), Class 1 nicht. Die Abfrage selbst
-// ist ein Class-1-Befehl und funktioniert deshalb überall.
+// Which PJLink level does the projector report? Class 2 knows the extra
+// commands (volume, freeze, maintenance readings), Class 1 does not. The query
+// itself is a Class 1 command and therefore works everywhere.
 //
-// Die Abfrage darf die Verbindung nicht scheitern lassen — im Zweifel gilt
-// Class 1, dann bleiben die Zusatzfunktionen eben aus. Entscheidend ist aber,
-// dass dabei festgehalten wird, WARUM Class 1 gilt: „der Beamer hat Class 1
-// geantwortet" und „die Abfrage blieb unbeantwortet" führen zum selben Wert,
-// bedeuten aber Verschiedenes. Ohne diese Unterscheidung liest sich ein
-// Zeitablauf wie eine Feststellung über das Gerät.
-async function ermittleKlasse() {
-    let antwort;
+// The query must not be allowed to fail the connection — when in doubt Class 1
+// applies, and the extra features simply stay away. What matters is recording
+// WHY Class 1 applies: "the projector answered Class 1" and "the query went
+// unanswered" lead to the same value but mean different things. Without that
+// distinction a timeout reads like a statement about the device.
+async function determineClass() {
+    let response;
 
     try {
-        antwort = await promisifyPJLinkCall(beamer.getClass.bind(beamer));
+        response = await promisifyPJLinkCall(projector.getClass.bind(projector));
     } catch (error) {
         return {
             pjlinkClass: 1,
-            pjlinkClassSource: 'unbeantwortet',
-            pjlinkClassDetail: error.message || 'kein Grund genannt'
+            pjlinkClassSource: 'unanswered',
+            pjlinkClassDetail: error.message || 'no reason given'
         };
     }
 
-    // getClass liefert {cls, raw}: die gelesene Klasse und den Wortlaut der
-    // Antwort. Das Herausklauben der Ziffer erledigt lib/command.js — dort
-    // sitzt auch die Nachsicht gegenüber Geräten, die statt "1" lieber
-    // "Class 1" antworten.
-    if (antwort && (antwort.cls === 1 || antwort.cls === 2)) {
+    // getClass returns {cls, raw}: the class that was read and the wording of
+    // the answer. Digging out the digit is lib/command.js's job — that is also
+    // where the leniency towards devices lives that answer "Class 1" rather
+    // than "1".
+    if (response && (response.cls === 1 || response.cls === 2)) {
         return {
-            pjlinkClass: antwort.cls,
-            pjlinkClassSource: 'gemeldet',
-            pjlinkClassDetail: antwort.raw
+            pjlinkClass: response.cls,
+            pjlinkClassSource: 'reported',
+            pjlinkClassDetail: response.raw
         };
     }
 
-    // Geantwortet hat er, aber ohne erkennbare Klassenangabe.
+    // It did answer, but without a recognizable class.
     return {
         pjlinkClass: 1,
-        pjlinkClassSource: 'unklar',
-        pjlinkClassDetail: (antwort && antwort.raw) || 'leere Antwort'
+        pjlinkClassSource: 'unclear',
+        pjlinkClassDetail: (response && response.raw) || 'empty answer'
     };
 }
 
 ipcMain.handle('disconnect', async () => {
     try {
-        if (beamer) {
-            beamer.disconnect();
-            beamer = null;
+        if (projector) {
+            projector.disconnect();
+            projector = null;
         }
-        return { success: true, message: 'Getrennt' };
+        return { success: true, message: 'Disconnected' };
     } catch (error) {
-        throw new Error(error.message || 'Trennung fehlgeschlagen');
+        throw new Error(error.message || 'Disconnect failed');
     }
 });
 
 ipcMain.handle('power-on', async () => {
-    if (!beamer) throw new Error('Nicht verbunden');
-    await promisifyPJLinkCall(beamer.powerOn.bind(beamer));
+    if (!projector) throw new Error('Not connected');
+    await promisifyPJLinkCall(projector.powerOn.bind(projector));
     return { success: true };
 });
 
 ipcMain.handle('power-off', async () => {
-    if (!beamer) throw new Error('Nicht verbunden');
-    await promisifyPJLinkCall(beamer.powerOff.bind(beamer));
+    if (!projector) throw new Error('Not connected');
+    await promisifyPJLinkCall(projector.powerOff.bind(projector));
     return { success: true };
 });
 
 ipcMain.handle('get-power-state', async () => {
-    if (!beamer) throw new Error('Nicht verbunden');
-    const state = await promisifyPJLinkCall(beamer.getPowerState.bind(beamer));
-    const states = { 0: 'Aus', 1: 'Ein', 2: 'Wird abgekühlt', 3: 'Wird aufgewärmt' };
-    return { state, description: states[state] || `Unbekannt (${state})` };
+    if (!projector) throw new Error('Not connected');
+    const state = await promisifyPJLinkCall(projector.getPowerState.bind(projector));
+    const states = { 0: 'Off', 1: 'On', 2: 'Cooling down', 3: 'Warming up' };
+    return { state, description: states[state] || `Unknown (${state})` };
 });
 
 ipcMain.handle('set-input', async (event, inputCode) => {
-    if (!beamer) throw new Error('Nicht verbunden');
+    if (!projector) throw new Error('Not connected');
     const source = parseInt(inputCode.charAt(0));
     const channel = parseInt(inputCode.charAt(1));
-    await promisifyPJLinkCall(beamer.setInput.bind(beamer), { source, channel });
+    await promisifyPJLinkCall(projector.setInput.bind(projector), { source, channel });
     return { success: true };
 });
 
 ipcMain.handle('get-current-input', async () => {
-    if (!beamer) throw new Error('Nicht verbunden');
-    return await promisifyPJLinkCall(beamer.getInput.bind(beamer));
+    if (!projector) throw new Error('Not connected');
+    return await promisifyPJLinkCall(projector.getInput.bind(projector));
 });
 
 ipcMain.handle('get-available-inputs', async () => {
-    if (!beamer) throw new Error('Nicht verbunden');
-    const inputs = await promisifyPJLinkCall(beamer.getInputs.bind(beamer));
+    if (!projector) throw new Error('Not connected');
+    const inputs = await promisifyPJLinkCall(projector.getInputs.bind(projector));
     return { inputs };
 });
 
-// Bild und Ton werden zuerst einzeln geschaltet (AVMT 11/10 und 21/20).
-// Viele Beamer — darunter etliche Optoma — kennen nur das gemeinsame
-// Schalten (AVMT 31/30) und antworten auf die Einzelwerte mit ERR1
-// "Undefined command". Dann wird auf den gemeinsamen Wert zurückgefallen,
-// wobei das Bild den Ausschlag gibt: es ist das, was im Raum auffällt.
+// Picture and sound are switched separately first (AVMT 11/10 and 21/20).
+// Many projectors — plenty of Optomas among them — only know the combined
+// switch (AVMT 31/30) and answer the separate values with ERR1 "Undefined
+// command". The combined value is then used as a fallback, with the picture
+// deciding: that is what people notice in the room.
 ipcMain.handle('set-mute', async (event, { video, audio }) => {
-    if (!beamer) throw new Error('Nicht verbunden');
+    if (!projector) throw new Error('Not connected');
 
     try {
-        await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), video ? '11' : '10');
-        await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), audio ? '21' : '20');
-        return { success: true, mode: 'separat' };
+        await promisifyPJLinkCall(projector.setMuteRaw.bind(projector), video ? '11' : '10');
+        await promisifyPJLinkCall(projector.setMuteRaw.bind(projector), audio ? '21' : '20');
+        return { success: true, mode: 'separate' };
     } catch (error) {
-        await promisifyPJLinkCall(beamer.setMuteRaw.bind(beamer), video ? '31' : '30');
-        return { success: true, mode: 'gemeinsam', hinweis: error.message };
+        await promisifyPJLinkCall(projector.setMuteRaw.bind(projector), video ? '31' : '30');
+        return { success: true, mode: 'combined', reason: error.message };
     }
 });
 
 ipcMain.handle('get-mute-state', async () => {
-    if (!beamer) throw new Error('Nicht verbunden');
-    return await promisifyPJLinkCall(beamer.getMute.bind(beamer));
+    if (!projector) throw new Error('Not connected');
+    return await promisifyPJLinkCall(projector.getMute.bind(projector));
 });
 
 ipcMain.handle('get-device-info', async () => {
-    if (!beamer) throw new Error('Nicht verbunden');
+    if (!projector) throw new Error('Not connected');
 
     try {
         const [name, manufacturer, model] = await Promise.allSettled([
-            promisifyPJLinkCall(beamer.getName.bind(beamer)),
-            promisifyPJLinkCall(beamer.getManufacturer.bind(beamer)),
-            promisifyPJLinkCall(beamer.getModel.bind(beamer))
+            promisifyPJLinkCall(projector.getName.bind(projector)),
+            promisifyPJLinkCall(projector.getManufacturer.bind(projector)),
+            promisifyPJLinkCall(projector.getModel.bind(projector))
         ]);
 
         return {
-            name: name.status === 'fulfilled' ? name.value : 'Unbekannt',
-            manufacturer: manufacturer.status === 'fulfilled' ? manufacturer.value : 'Unbekannt',
-            model: model.status === 'fulfilled' ? model.value : 'Unbekannt'
+            name: name.status === 'fulfilled' ? name.value : 'Unknown',
+            manufacturer: manufacturer.status === 'fulfilled' ? manufacturer.value : 'Unknown',
+            model: model.status === 'fulfilled' ? model.value : 'Unknown'
         };
     } catch (error) {
         return {
-            name: 'Unbekannt',
-            manufacturer: 'Unbekannt',
-            model: 'Unbekannt'
+            name: 'Unknown',
+            manufacturer: 'Unknown',
+            model: 'Unknown'
         };
     }
 });
 
 // ============ PJLINK CLASS 2 ============
 
-// Ein Beamer, der einen Class-2-Befehl nicht kennt, antwortet mit ERR1.
-// Das ist kein Fehler der App und keiner der Verbindung — es heißt nur:
-// diese Funktion gibt es an diesem Gerät nicht. Sie wird dann in der
-// Oberfläche ausgegraut, statt eine Fehlermeldung auszulösen.
-// Alles andere (Zeitablauf, Passwort, Gerätestörung) bleibt ein echter Fehler
-// und geht unverändert an den Aufrufer.
-const KENNT_BEAMER_NICHT = 'Undefined command';
+// A projector that does not know a Class 2 command answers with ERR1. That is
+// not a fault of the app and not a fault of the connection — it only means
+// this device does not have the feature. It is then greyed out in the
+// interface rather than raising an error message.
+// Everything else (timeout, password, device fault) stays a real error and
+// reaches the caller unchanged.
+const UNSUPPORTED_COMMAND = 'Undefined command';
 
 async function class2(fn) {
-    if (!beamer) throw new Error('Nicht verbunden');
+    if (!projector) throw new Error('Not connected');
 
     try {
         return { supported: true, value: await fn() };
     } catch (error) {
-        if (error.message === KENNT_BEAMER_NICHT) {
+        if (error.message === UNSUPPORTED_COMMAND) {
             return { supported: false, reason: error.message };
         }
         throw error;
     }
 }
 
-// ---- Lautstärke (SVOL / MVOL) ----
-// Rein relativ: eine Stufe hoch oder runter. Einen Ist-Wert gibt PJLink nicht
-// her und es gibt auch keine Abfrage dafür — so steht es in der Spezifikation.
+// ---- Volume (SVOL / MVOL) ----
+// Purely relative: one step up or down. PJLink does not hand out a current
+// level and there is no query for it either — that is what the spec says.
 
-ipcMain.handle('speaker-volume', async (event, richtung) => {
-    return class2(() => promisifyPJLinkCall(beamer.setSpeakerVolume.bind(beamer), richtung));
+ipcMain.handle('speaker-volume', async (event, direction) => {
+    return class2(() => promisifyPJLinkCall(projector.setSpeakerVolume.bind(projector), direction));
 });
 
-ipcMain.handle('microphone-volume', async (event, richtung) => {
-    return class2(() => promisifyPJLinkCall(beamer.setMicrophoneVolume.bind(beamer), richtung));
+ipcMain.handle('microphone-volume', async (event, direction) => {
+    return class2(() => promisifyPJLinkCall(projector.setMicrophoneVolume.bind(projector), direction));
 });
 
-// ---- Standbild (FREZ) ----
+// ---- Freeze (FREZ) ----
 
-ipcMain.handle('set-freeze', async (event, an) => {
-    return class2(() => promisifyPJLinkCall(beamer.setFreeze.bind(beamer), an === true));
+ipcMain.handle('set-freeze', async (event, on) => {
+    return class2(() => promisifyPJLinkCall(projector.setFreeze.bind(projector), on === true));
 });
 
 ipcMain.handle('get-freeze', async () => {
-    return class2(() => promisifyPJLinkCall(beamer.getFreeze.bind(beamer)));
+    return class2(() => promisifyPJLinkCall(projector.getFreeze.bind(projector)));
 });
 
-// ---- Gerätedaten (SNUM / SVER) ----
+// ---- Device data (SNUM / SVER) ----
 
 ipcMain.handle('get-device-details', async () => {
     return class2(async () => {
-        const [seriennummer, software] = await Promise.all([
-            promisifyPJLinkCall(beamer.getSerialNumber.bind(beamer)),
-            promisifyPJLinkCall(beamer.getSoftwareVersion.bind(beamer))
+        const [serialNumber, softwareVersion] = await Promise.all([
+            promisifyPJLinkCall(projector.getSerialNumber.bind(projector)),
+            promisifyPJLinkCall(projector.getSoftwareVersion.bind(projector))
         ]);
-        return { serialNumber: seriennummer, softwareVersion: software };
+        return { serialNumber: serialNumber, softwareVersion: softwareVersion };
     });
 });
 
-// ---- Name eines Eingangs (INNM) ----
-// Der einzige Class-2-Abfragebefehl mit Parameter: gefragt wird je Eingang.
+// ---- Name of an input (INNM) ----
+// The only Class 2 query command with a parameter: it asks per input.
 
 ipcMain.handle('get-input-name', async (event, code) => {
-    return class2(() => promisifyPJLinkCall(beamer.getInputName.bind(beamer), code));
+    return class2(() => promisifyPJLinkCall(projector.getInputName.bind(projector), code));
 });
 
-// ---- Auflösung (IRES / RRES) ----
+// ---- Resolution (IRES / RRES) ----
 
 ipcMain.handle('get-resolutions', async () => {
     return class2(async () => {
-        const [anliegend, empfohlen] = await Promise.all([
-            promisifyPJLinkCall(beamer.getInputResolution.bind(beamer)),
-            promisifyPJLinkCall(beamer.getRecommendedResolution.bind(beamer))
+        const [incoming, recommended] = await Promise.all([
+            promisifyPJLinkCall(projector.getInputResolution.bind(projector)),
+            promisifyPJLinkCall(projector.getRecommendedResolution.bind(projector))
         ]);
-        return { input: anliegend, recommended: empfohlen };
+        return { input: incoming, recommended: recommended };
     });
 });
 
-// ---- Wartung (FILT / RLMP / RFIL) ----
+// ---- Maintenance (FILT / RLMP / RFIL) ----
 
 ipcMain.handle('get-maintenance', async () => {
-    if (!beamer) throw new Error('Nicht verbunden');
+    if (!projector) throw new Error('Not connected');
 
-    // Einzeln abgesichert: ein Laserbeamer hat keine Wechsellampe und
-    // antwortet auf RLMP mit ERR1, kennt aber sehr wohl die Filterstunden.
-    const [filterStunden, lampen, filter] = await Promise.allSettled([
-        promisifyPJLinkCall(beamer.getFilterUsage.bind(beamer)),
-        promisifyPJLinkCall(beamer.getLampReplacements.bind(beamer)),
-        promisifyPJLinkCall(beamer.getFilterReplacements.bind(beamer))
+    // Each one guarded on its own: a laser projector has no replaceable lamp
+    // and answers RLMP with ERR1, but it does know its filter hours.
+    const [filterHours, lamps, filters] = await Promise.allSettled([
+        promisifyPJLinkCall(projector.getFilterUsage.bind(projector)),
+        promisifyPJLinkCall(projector.getLampReplacements.bind(projector)),
+        promisifyPJLinkCall(projector.getFilterReplacements.bind(projector))
     ]);
-    const alle = [filterStunden, lampen, filter];
+    const all = [filterHours, lamps, filters];
 
-    const unbekannt = (e) => e.status === 'rejected' && e.reason.message === KENNT_BEAMER_NICHT;
+    const isUnsupported = (e) => e.status === 'rejected' && e.reason.message === UNSUPPORTED_COMMAND;
 
-    // Kennt der Beamer keinen einzigen dieser Befehle, beherrscht er die
-    // Funktion nicht — sie wird ausgegraut, statt drei leere Felder zu zeigen.
-    if (alle.every(unbekannt)) {
-        return { supported: false, reason: KENNT_BEAMER_NICHT };
+    // If the projector knows none of these commands at all, it does not have
+    // the feature — it is greyed out rather than showing three empty fields.
+    if (all.every(isUnsupported)) {
+        return { supported: false, reason: UNSUPPORTED_COMMAND };
     }
 
-    // Ein echter Fehler (Zeitablauf, Passwort, Gerätestörung) darf nicht als
-    // "dieser Wert fehlt eben" durchgehen.
-    const echterFehler = alle.find((e) => e.status === 'rejected' && !unbekannt(e));
-    if (echterFehler) throw new Error(echterFehler.reason.message);
+    // A real error (timeout, password, device fault) must not pass as "this
+    // value happens to be missing".
+    const realFailure = all.find((e) => e.status === 'rejected' && !isUnsupported(e));
+    if (realFailure) throw new Error(realFailure.reason.message);
 
     return {
         supported: true,
         value: {
-            filterHours: filterStunden.status === 'fulfilled' ? filterStunden.value : null,
-            lampModels: lampen.status === 'fulfilled' ? (lampen.value || []) : [],
-            filterModels: filter.status === 'fulfilled' ? (filter.value || []) : []
+            filterHours: filterHours.status === 'fulfilled' ? filterHours.value : null,
+            lampModels: lamps.status === 'fulfilled' ? (lamps.value || []) : [],
+            filterModels: filters.status === 'fulfilled' ? (filters.value || []) : []
         }
     };
 });
 
-// ============ EINSTELLUNGEN SPEICHERN/LADEN ============
+// ============ SAVING AND LOADING SETTINGS ============
 
 ipcMain.handle('load-settings', async () => {
     return loadSettingsFromDisk();
@@ -368,18 +367,18 @@ ipcMain.handle('save-settings', async (event, settings) => {
     return { success: true };
 });
 
-// ============ NETZWERK SCANNER ============
+// ============ NETWORK SCANNER ============
 
-// Ermittelt die lokalen Subnetze (z.B. "192.168.1") anhand der Netzwerk-Interfaces
+// Works out the local subnets (e.g. "192.168.1") from the network interfaces
 function getLocalSubnets() {
     const interfaces = os.networkInterfaces();
     const subnets = [];
     for (const name in interfaces) {
         for (const iface of interfaces[name]) {
             if (iface.family !== 'IPv4' || iface.internal) continue;
-            // 169.254.x.x vergibt sich ein Gerät selbst, wenn es keine Adresse
-            // bekommen hat. Dort steht garantiert kein Beamer — die 254 Adressen
-            // zu prüfen kostet nur Zeit.
+            // A device gives itself a 169.254.x.x address when it did not get
+            // one. There is guaranteed to be no projector there — checking
+            // those 254 addresses only costs time.
             if (iface.address.startsWith('169.254.')) continue;
             const parts = iface.address.split('.');
             subnets.push(parts.slice(0, 3).join('.'));
@@ -388,7 +387,7 @@ function getLocalSubnets() {
     return [...new Set(subnets)];
 }
 
-// Prüft schnell, ob ein Host auf einem Port lauscht (ohne PJLink-Protokoll zu sprechen)
+// Checks quickly whether a host is listening on a port (without speaking PJLink)
 function checkPort(host, port, timeout) {
     return new Promise((resolve) => {
         const socket = new net.Socket();
@@ -409,15 +408,15 @@ function checkPort(host, port, timeout) {
     });
 }
 
-// Versucht best-effort den Gerätenamen per PJLink zu holen (mit kurzem Timeout)
+// Tries best-effort to fetch the device name over PJLink (with a short timeout)
 function getDeviceNameQuick(host, port) {
     return new Promise((resolve) => {
         const timer = setTimeout(() => resolve(null), 2000);
         try {
-            const testBeamer = new PJLink(host, port, null);
-            testBeamer.getName((err, result) => {
+            const testProjector = new PJLink(host, port, null);
+            testProjector.getName((err, result) => {
                 clearTimeout(timer);
-                testBeamer.disconnect();
+                testProjector.disconnect();
                 resolve(err ? null : result);
             });
         } catch (error) {
@@ -428,12 +427,12 @@ function getDeviceNameQuick(host, port) {
 }
 
 ipcMain.handle('scan-network', async (event) => {
-    const PORT = 4352; // PJLink Standardport
-    const TIMEOUT = 900; // ms pro Host — Beamer im Standby antworten träge
+    const PORT = 4352; // PJLink default port
+    const TIMEOUT = 900; // ms per host — projectors in standby answer sluggishly
     const subnets = getLocalSubnets();
 
     if (subnets.length === 0) {
-        throw new Error('Kein aktives Netzwerk gefunden');
+        throw new Error('No active network found');
     }
 
     const total = subnets.length * 254;
@@ -441,8 +440,8 @@ ipcMain.handle('scan-network', async (event) => {
     const openHosts = [];
     const devices = [];
 
-    // Meldet den Fortschritt an das Fenster, damit der Assistent einen Balken zeigen kann.
-    const melden = () => {
+    // Reports progress to the window so the wizard can show a bar.
+    const report = () => {
         if (!event.sender.isDestroyed()) {
             event.sender.send('scan-progress', { checked, total, devices: devices.slice() });
         }
@@ -456,25 +455,25 @@ ipcMain.handle('scan-network', async (event) => {
                 checkPort(host, PORT, TIMEOUT).then((open) => {
                     checked++;
                     if (open) openHosts.push(host);
-                    if (checked % 10 === 0) melden();
+                    if (checked % 10 === 0) report();
                 })
             );
         }
         await Promise.all(checks);
     }
-    melden();
+    report();
 
-    // Für jeden gefundenen Host best-effort den Gerätenamen holen
+    // For every host found, fetch the device name best-effort
     for (const host of openHosts) {
         const name = await getDeviceNameQuick(host, PORT);
         devices.push({ host, port: PORT, name: name || null });
-        melden();
+        report();
     }
 
     return { devices };
 });
 
-// ============ FARBSCHEMA DES BETRIEBSSYSTEMS ============
+// ============ COLOUR SCHEME OF THE OPERATING SYSTEM ============
 
 ipcMain.handle('get-os-theme', async () => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
@@ -486,12 +485,11 @@ nativeTheme.on('updated', () => {
     }
 });
 
-// ============ SPRACHE DES BETRIEBSSYSTEMS ============
+// ============ LANGUAGE OF THE OPERATING SYSTEM ============
 
-// Gleicher Weg wie beim Farbschema: das Betriebssystem wird gefragt, der
-// Renderer bekommt die Antwort. Herausgereicht wird nur eine Sprache, die
-// die App auch beherrscht — ein französisches Windows bekommt Englisch,
-// keinen halb übersetzten Bildschirm.
+// Same route as the colour scheme: the operating system is asked, the renderer
+// gets the answer. Only a language the app actually speaks is handed out — a
+// French Windows gets English, not a half-translated screen.
 ipcMain.handle('get-os-locale', async () => {
     return i18n.normalizeLanguage(app.getLocale());
 });

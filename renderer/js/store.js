@@ -1,5 +1,5 @@
-// Einstellungen der Anwendung: prüfen, laden, im Speicher halten, schreiben.
-// Kennt weder DOM noch Beamer. Läuft im Renderer und in Node (für die Tests).
+// The application's settings: validate, load, hold in memory, write out.
+// Knows neither DOM nor projector. Runs in the renderer and in Node (for the tests).
 (function (root, factory) {
     const api = factory();
     if (typeof module === 'object' && module.exports) {
@@ -13,16 +13,16 @@
     const SCHEMA_VERSION = 2;
     const THEMES = ['system', 'light', 'dark'];
 
-    // Zusatzfunktionen aus PJLink Class 2. Jeder Eintrag ist eine Sache, die
-    // die Technik freischalten kann — nicht ein einzelner PJLink-Befehl.
-    // Welche Befehle dahinterstehen, steht in main.js.
+    // Extra features from PJLink Class 2. Each entry is one thing the technical
+    // staff can enable — not a single PJLink command. Which commands are behind
+    // them is documented in main.js.
     const CLASS2_FEATURES = [
-        'volume',        // Lautstärke Lautsprecher und Mikrofon (SVOL, MVOL)
-        'freeze',        // Standbild (FREZ)
-        'deviceDetails', // Seriennummer und Softwarestand (SNUM, SVER)
-        'inputNames',    // Eingangsnamen aus dem Beamer (INNM)
-        'resolution',    // anliegende und empfohlene Auflösung (IRES, RRES)
-        'maintenance'    // Filterstunden und Ersatzteilnummern (FILT, RLMP, RFIL)
+        'volume',        // speaker and microphone volume (SVOL, MVOL)
+        'freeze',        // freeze picture (FREZ)
+        'deviceDetails', // serial number and software version (SNUM, SVER)
+        'inputNames',    // input names from the projector (INNM)
+        'resolution',    // incoming and recommended resolution (IRES, RRES)
+        'maintenance'    // filter hours and replacement part numbers (FILT, RLMP, RFIL)
     ];
 
     const DEFAULTS = {
@@ -30,13 +30,13 @@
         connection: { host: '', port: 4352, password: null },
         sources: [],
         appearance: { theme: 'system', highContrast: false },
-        // null heißt: noch keine eigene Wahl getroffen — dann gilt die Sprache
-        // des Betriebssystems. Eine bestehende Datei ohne dieses Feld landet
-        // genau hier, ganz ohne Umstellung.
+        // null means: no choice made yet — then the operating system's language
+        // applies. An existing file without this field lands exactly here,
+        // without any migration.
         language: null,
         setupCompleted: false,
-        // Nichts ist von sich aus an: ein Knopf, hinter dem der Beamer keinen
-        // Befehl kennt, ist schlimmer als ein fehlender Knopf.
+        // Nothing is on by itself: a button with no command behind it is worse
+        // than a missing button.
         enabledClass2Features: []
     };
 
@@ -44,7 +44,7 @@
         return JSON.parse(JSON.stringify(DEFAULTS));
     }
 
-    // Baut aus beliebigem Eingang ein vollständiges, gültiges Einstellungsobjekt.
+    // Builds a complete, valid settings object out of any input.
     function normalize(raw) {
         const out = copyDefaults();
         if (!raw || typeof raw !== 'object') return out;
@@ -72,9 +72,9 @@
             out.appearance.highContrast = a.highContrast === true;
         }
 
-        // Geprüft wird nur die Form, nicht ob es die Sprache gibt: welche
-        // Sprachen die App mitbringt, weiß der Übersetzungs-Helfer. Sonst
-        // müsste diese Datei bei jeder neuen Sprache mit geändert werden.
+        // Only the shape is checked here, not whether the language exists:
+        // which languages the app ships is the translation helper's business.
+        // Otherwise this file would need changing for every new language.
         if (typeof raw.language === 'string' && /^[a-z]{2}$/.test(raw.language)) {
             out.language = raw.language;
         }
@@ -89,7 +89,7 @@
         return out;
     }
 
-    // Nur Dateien mit passender Version gelten. Alles andere heißt: neu einrichten.
+    // Only files with a matching version count. Anything else means: set up again.
     function isUsable(raw) {
         return !!raw && typeof raw === 'object' && raw.version === SCHEMA_VERSION;
     }
@@ -140,7 +140,7 @@
                 return settings.enabledClass2Features.indexOf(key) !== -1;
             },
 
-            // null nimmt die Wahl zurück: dann gilt wieder das Betriebssystem.
+            // null takes the choice back: the operating system decides again.
             setLanguage(language) {
                 settings.language = normalize({ version: SCHEMA_VERSION, language }).language;
             },
