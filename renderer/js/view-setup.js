@@ -8,10 +8,6 @@ window.App.viewSetup = (function () {
     const el = ui.el;
     const t = window.App.i18n.t;
 
-    // As on the technical page: language names stay untranslated, otherwise
-    // nobody who cannot read the current language would find their way back.
-    const LANGUAGE_NAMES = { de: 'Deutsch', en: 'English' };
-
     let ctx = null;
     let root = null;
 
@@ -29,15 +25,12 @@ window.App.viewSetup = (function () {
     // anyone facing the setup in the wrong language should be able to change it
     // straight away, not only at the end.
     function languageChoice() {
-        const chosen = ctx.store.getLanguage();
-
-        return el('span', { class: 'sprachwahl' }, window.App.i18n.supportedLanguages().map(function (code) {
-            return el('button', {
-                class: 'knopf text' + (chosen === code ? ' aktiv' : ''),
-                text: LANGUAGE_NAMES[code] || code,
-                onclick: function () { window.App.setLanguage(code); }
-            });
-        }));
+        return el('span', { class: 'sprachwahl' }, [
+            ui.languageSelect({
+                chosen: ctx.store.getLanguage(),
+                onChange: function (choice) { window.App.setLanguage(choice); }
+            })
+        ]);
     }
 
     function stepBar() {

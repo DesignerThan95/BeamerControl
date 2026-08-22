@@ -62,7 +62,29 @@ window.App.ui = (function () {
         });
     }
 
-    return { el: el, clear: clear, confirmDialog: confirmDialog };
+    // The language picker, used on the technical page and in the setup wizard.
+    // First entry is the operating system, then the shipped languages sorted by
+    // the name each one calls itself. Nothing here knows the store: the caller
+    // passes in the current choice and gets the new one back, where null means
+    // "no choice of my own, follow the operating system".
+    function languageSelect(opt) {
+        const i18n = window.App.i18n;
+
+        const options = [el('option', { value: '', text: t('tech.languageSystem') })];
+        i18n.languagesByName().forEach(function (code) {
+            options.push(el('option', { value: code, text: i18n.languageName(code) }));
+        });
+
+        const select = el('select', {
+            class: 'eingabe auswahl',
+            onchange: function (e) { opt.onChange(e.target.value || null); }
+        }, options);
+
+        select.value = opt.chosen || '';
+        return select;
+    }
+
+    return { el: el, clear: clear, confirmDialog: confirmDialog, languageSelect: languageSelect };
 })();
 
 // Activity log: collects messages for the technical page. Never appears in the

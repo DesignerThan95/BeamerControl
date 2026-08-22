@@ -475,34 +475,15 @@ window.App.viewTech = (function () {
 
     // ---------- Language ----------
 
-    // Language names deliberately do not live in the language files: "Deutsch"
-    // reads "Deutsch" on every screen, otherwise nobody who cannot read the
-    // current language would find their way back.
-    const LANGUAGE_NAMES = { de: 'Deutsch', en: 'English' };
-
     function languageBlock() {
-        const chosen = ctx.store.getLanguage();
-
-        function choice(value, label) {
-            return el('label', {}, [
-                el('input', {
-                    type: 'radio',
-                    name: 'sprache',
-                    checked: chosen === value,
-                    onchange: function () { window.App.setLanguage(value); }
-                }),
-                label
-            ]);
-        }
-
-        const choices = [choice(null, t('tech.languageSystem'))];
-        window.App.i18n.supportedLanguages().forEach(function (code) {
-            choices.push(choice(code, LANGUAGE_NAMES[code] || code));
-        });
-
         return el('div', { class: 'block' }, [
             el('div', { class: 'block-titel', text: t('tech.languageHeading') }),
-            el('div', { class: 'wahl' }, choices)
+            el('div', { class: 'wahl' }, [
+                ui.languageSelect({
+                    chosen: ctx.store.getLanguage(),
+                    onChange: function (choice) { window.App.setLanguage(choice); }
+                })
+            ])
         ]);
     }
 

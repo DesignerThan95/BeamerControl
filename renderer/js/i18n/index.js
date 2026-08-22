@@ -45,6 +45,22 @@
         return Object.keys(catalogs()).sort();
     }
 
+    // The name of a language, written in that language ("Deutsch", "English").
+    // It comes out of that language's own catalog, never out of the one in use:
+    // someone who cannot read the current language still has to find their own.
+    function languageName(language) {
+        const own = lookup(catalogs()[language], 'languageName');
+        return own !== undefined ? own : language;
+    }
+
+    // The shipped languages, sorted by the name each one calls itself — that is
+    // the order they appear in on screen, so it is the order that matters.
+    function languagesByName() {
+        return supportedLanguages().sort(function (a, b) {
+            return languageName(a).localeCompare(languageName(b));
+        });
+    }
+
     function isSupported(language) {
         return Object.prototype.hasOwnProperty.call(catalogs(), language);
     }
@@ -116,6 +132,8 @@
         normalizeLanguage: normalizeLanguage,
         isSupported: isSupported,
         supportedLanguages: supportedLanguages,
+        languageName: languageName,
+        languagesByName: languagesByName,
         FALLBACK_LANGUAGE: FALLBACK_LANGUAGE
     };
 });

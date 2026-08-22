@@ -17,6 +17,42 @@ test('the shipped languages are found', () => {
     assert.strictEqual(i18n.isSupported('fr'), false);
 });
 
+// ---------- Names of the languages ----------
+
+test('a language is named in its own language', () => {
+    assert.strictEqual(i18n.languageName('de'), 'Deutsch');
+    assert.strictEqual(i18n.languageName('en'), 'English');
+});
+
+// The whole point: the picker has to stay readable for someone who cannot read
+// the language currently set.
+test('the name does not follow the language in use', () => {
+    i18n.setLanguage('en');
+    assert.strictEqual(i18n.languageName('de'), 'Deutsch');
+    i18n.setLanguage('de');
+    assert.strictEqual(i18n.languageName('en'), 'English');
+});
+
+test('a language without a name of its own falls back to its code', () => {
+    assert.strictEqual(i18n.languageName('fr'), 'fr');
+});
+
+test('the languages come sorted by the name they call themselves', () => {
+    assert.deepStrictEqual(i18n.languagesByName(), ['de', 'en']);
+});
+
+// Sorting by code and sorting by name are not the same thing. A language whose
+// code sorts last but whose name sorts first has to come first on screen.
+test('sorting follows the name, not the code', () => {
+    globalThis.translations.zz = { languageName: 'Alemannisch' };
+    try {
+        assert.deepStrictEqual(i18n.languagesByName(), ['zz', 'de', 'en']);
+        assert.deepStrictEqual(i18n.supportedLanguages(), ['de', 'en', 'zz'], 'by code it sorts last');
+    } finally {
+        delete globalThis.translations.zz;
+    }
+});
+
 // ---------- Looking texts up ----------
 
 test('t returns the text of the current language', () => {

@@ -15,6 +15,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     return {
 
+        // The name of this language, in this language. Always read from this
+        // catalog, never from the one in use — the language picker has to stay
+        // readable for someone who cannot read the language currently set.
+        languageName: 'Deutsch',
+
         common: {
             appTitle: 'Beamer Steuerung',
             toggleThemeTitle: 'Hell / Dunkel umschalten',
