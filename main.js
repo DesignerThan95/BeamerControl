@@ -5,9 +5,10 @@ const fs = require('fs');
 const os = require('os');
 const net = require('net');
 const PJLink = require('./index'); // PJLink library
-// Only for normalizing the language: which languages exist is the translation
-// helper's business, and that list should live nowhere else.
-const i18n = require('./renderer/js/i18n');
+// The translations, read once at startup. They are needed here because the
+// renderer cannot read them itself and the preload script runs sandboxed.
+const { loadResources, normalizeLanguage } = require('./renderer/js/i18n/resources');
+const translationResources = loadResources();
 
 let mainWindow;
 let projector = null;
@@ -487,15 +488,17 @@ nativeTheme.on('updated', () => {
 
 // ============ TRANSLATIONS ============
 
-// The texts from locales/*.json, read once when this module loads. The
-// renderer cannot read them itself — no fs there, and fetch() cannot reach a
-// file:// path — and neither can the preload script, which runs sandboxed.
-// So it is handed out from here.
+// The translations, shaped the way i18next takes them on init:
+// { en: { translation: {…} }, de: { translation: {…} } }.
+//
+// The renderer cannot read them itself — no fs there, and fetch() cannot reach
+// a file:// path — and neither can the preload script, which runs sandboxed.
+// So they are handed out from here.
 //
 // Synchronous by design: the preload script asks before the first paint, so
-// that no screen can render before it has its texts. One small object, once.
+// that no screen can render before i18next has its resources. One object, once.
 ipcMain.on('get-translations', (event) => {
-    event.returnValue = i18n.catalogs();
+    event.returnValue = translationResources;
 });
 
 // ============ LANGUAGE OF THE OPERATING SYSTEM ============
@@ -504,5 +507,5 @@ ipcMain.on('get-translations', (event) => {
 // gets the answer. Only a language the app actually speaks is handed out — a
 // French Windows gets English, not a half-translated screen.
 ipcMain.handle('get-os-locale', async () => {
-    return i18n.normalizeLanguage(app.getLocale());
+    return normalizeLanguage(app.getLocale(), translationResources);
 });

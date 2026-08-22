@@ -16,11 +16,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 //
 // Handed to the renderer as plain data rather than as a function on pjlinkAPI:
 // the context bridge copies its arguments on every call, so a getter would
-// clone the whole catalog on every single lookup.
+// clone the whole catalog every time. This object goes straight into
+// i18next.init({ resources }) on the other side.
 //
 // A locale file that is missing or malformed was already dropped by the
-// loader, with the reason on the console. Whatever loaded, ships.
-contextBridge.exposeInMainWorld('translations', ipcRenderer.sendSync('get-translations'));
+// loader, with the reason on the console. Whatever loaded, ships — i18next
+// falls back to English for the rest.
+contextBridge.exposeInMainWorld('i18nResources', ipcRenderer.sendSync('get-translations'));
 
 contextBridge.exposeInMainWorld('pjlinkAPI', {
     // Connection

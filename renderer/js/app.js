@@ -16,9 +16,10 @@ window.App = window.App || {};
 
     // The activity log is meant for the technical staff and stays English —
     // including the names of the extra features in it. Otherwise an English
-    // line would suddenly carry a German word.
+    // line would suddenly carry a German word. `lng` is i18next's documented
+    // way of asking for one specific language regardless of the current one.
     function featureName(key) {
-        return i18n.t('tech.features.' + key + '.title', null, i18n.FALLBACK_LANGUAGE);
+        return i18next.t('tech.features.' + key + '.title', { lng: i18n.FALLBACK_LANGUAGE });
     }
 
     // If the projector does not know a Class 2 command, it answers with ERR1.
@@ -136,38 +137,55 @@ window.App = window.App || {};
 
     // An explicitly chosen language beats the operating system, on every
     // further start, until it is changed again. null means: no choice made,
-    // then the operating system decides.
-    async function applyLanguage(choice) {
-        i18n.setLanguage(choice || await osLanguage());
-        labelHeader();
+    // then the operating system decides. Which language that ends up being is
+    // our business logic; the switching itself is i18next's.
+    async function resolveLanguage(choice) {
+        return choice || await osLanguage();
     }
 
     // The header is fixed scaffolding in index.html and therefore not redrawn
     // with the views — it has to be caught up separately.
     function labelHeader() {
-        const title = i18n.t('common.appTitle');
-        document.documentElement.lang = i18n.getCurrentLanguage();
+        const title = i18next.t('common.appTitle');
+        // resolvedLanguage, not language: if the chosen language failed to load,
+        // i18next is showing the fallback, and that is what the document is in.
+        document.documentElement.lang = i18next.resolvedLanguage;
         document.title = title;
         document.querySelector('.kopf-titel').textContent = title;
-        document.getElementById('themaKnopf').title = i18n.t('common.toggleThemeTitle');
-        document.getElementById('technikKnopf').title = i18n.t('common.techTitle');
+        document.getElementById('themaKnopf').title = i18next.t('common.toggleThemeTitle');
+        document.getElementById('technikKnopf').title = i18next.t('common.techTitle');
     }
 
     App.showView = showView;
     App.ctx = { store: store, projector: projector, theme: theme, api: api, log: log };
 
-    // Called by the technical page and by the setup wizard.
+    // Called by the technical page and by the setup wizard. Persisting the
+    // choice is ours; switching is i18next's. Redrawing is not done here — the
+    // languageChanged listener below does that, for every source of a change.
     App.setLanguage = async function (choice) {
         store.setLanguage(choice);
         await store.save();
-        await applyLanguage(choice);
-        log.add('Language set to ' + i18n.getCurrentLanguage() + (choice ? '' : ' (operating system)'), 'info');
-        render();
+        await i18next.changeLanguage(await resolveLanguage(choice));
     };
 
     async function start() {
         await store.load();
-        await applyLanguage(store.getLanguage());
+
+        // The resources come from the main process through the context bridge;
+        // see preload.js for why they cannot be read here.
+        await i18n.init(await resolveLanguage(store.getLanguage()), window.i18nResources);
+        labelHeader();
+
+        // https://www.i18next.com/overview/api#onlanguagechanged — the one
+        // trigger for redrawing after a language change, no matter who caused
+        // it. Registered after init so the initial language does not fire it.
+        i18next.on('languageChanged', function (language) {
+            labelHeader();
+            render();
+            log.add('Language set to ' + language +
+                (language === i18next.resolvedLanguage ? '' : ' (showing ' + i18next.resolvedLanguage + ', its file did not load)'), 'info');
+        });
+
         theme.init(function () { render(); });
 
         if (App.viewOperate) App.viewOperate.init(App.ctx);

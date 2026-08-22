@@ -7,7 +7,6 @@ window.App = window.App || {};
 window.App.viewTech = (function () {
     const ui = window.App.ui;
     const el = ui.el;
-    const t = window.App.i18n.t;
 
     let ctx = null;
     let root = null;
@@ -26,7 +25,7 @@ window.App.viewTech = (function () {
     ];
 
     function featureTitle(key) {
-        return t('tech.features.' + key + '.title');
+        return i18next.t('tech.features.' + key + '.title');
     }
 
     // The activity log's severities are also the CSS classes it is rendered
@@ -49,9 +48,9 @@ window.App.viewTech = (function () {
     function connectionBlock() {
         const c = ctx.store.get().connection;
 
-        const hostField = el('input', { class: 'eingabe', value: c.host, type: 'text', placeholder: t('common.hostPlaceholder') });
+        const hostField = el('input', { class: 'eingabe', value: c.host, type: 'text', placeholder: i18next.t('common.hostPlaceholder') });
         const portField = el('input', { class: 'eingabe', value: String(c.port), type: 'number' });
-        const passwordField = el('input', { class: 'eingabe', value: c.password || '', type: 'password', placeholder: t('common.passwordPlaceholder') });
+        const passwordField = el('input', { class: 'eingabe', value: c.password || '', type: 'password', placeholder: i18next.t('common.passwordPlaceholder') });
 
         function applyFields() {
             ctx.store.setConnection({
@@ -67,38 +66,38 @@ window.App.viewTech = (function () {
             onclick: async function () {
                 await applyFields();
                 const n = ctx.store.get().connection;
-                connectionMessage = t('common.connecting');
+                connectionMessage = i18next.t('common.connecting');
                 connectionLevel = 'info';
                 redraw();
                 try {
                     await ctx.api.connect({ host: n.host, port: n.port, password: n.password });
                     const info = await ctx.api.getDeviceInfo();
-                    connectionMessage = t('tech.connectedWith', { manufacturer: info.manufacturer, model: info.model });
+                    connectionMessage = i18next.t('tech.connectedWith', { manufacturer: info.manufacturer, model: info.model });
                     connectionLevel = 'ok';
                     ctx.log.add('Connection checked: ' + n.host, 'ok');
                     ctx.projector.start();
                     ctx.projector.refreshNow();
                 } catch (e) {
-                    connectionMessage = t('common.connectionFailed', { message: e.message });
+                    connectionMessage = i18next.t('common.connectionFailed', { message: e.message });
                     connectionLevel = 'error';
                     ctx.log.add('Connection failed: ' + e.message, 'error');
                 }
                 redraw();
             }
-        }, [t('tech.testConnection')]);
+        }, [i18next.t('tech.testConnection')]);
 
         const scanButton = el('button', {
             class: 'knopf',
             disabled: scan.running,
             onclick: function () { startScan(); }
-        }, [scan.running ? t('common.scanRunning') : t('tech.scanNetwork')]);
+        }, [scan.running ? i18next.t('common.scanRunning') : i18next.t('tech.scanNetwork')]);
 
         const children = [
-            el('div', { class: 'block-titel', text: t('tech.connectionHeading') }),
+            el('div', { class: 'block-titel', text: i18next.t('tech.connectionHeading') }),
             el('div', { class: 'felder' }, [
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.ipAddress') }), hostField]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.port') }), portField]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('tech.passwordLabel') }), passwordField])
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('common.ipAddress') }), hostField]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('common.port') }), portField]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('tech.passwordLabel') }), passwordField])
             ]),
             el('div', { class: 'knopfzeile' }, [
                 testButton,
@@ -108,7 +107,7 @@ window.App.viewTech = (function () {
                     connectionMessage
                 ]) : null
             ]),
-            el('p', { class: 'hinweis', text: t('tech.standbyHint') })
+            el('p', { class: 'hinweis', text: i18next.t('tech.standbyHint') })
         ];
 
         if (scan.running) {
@@ -117,7 +116,7 @@ window.App.viewTech = (function () {
             bar.firstChild.style.width = percent + '%';
             children.push(bar, el('div', {
                 class: 'feld-lab',
-                text: t('common.scanProgress', { checked: scan.checked, total: scan.total, found: scan.devices.length })
+                text: i18next.t('common.scanProgress', { checked: scan.checked, total: scan.total, found: scan.devices.length })
             }));
         }
 
@@ -127,7 +126,7 @@ window.App.viewTech = (function () {
                     el('span', { class: 'treffer-host', text: d.host }),
                     el('button', {
                         class: 'knopf text',
-                        text: t('tech.useDevice', { name: d.name || t('common.pjlinkDevice') }),
+                        text: i18next.t('tech.useDevice', { name: d.name || i18next.t('common.pjlinkDevice') }),
                         onclick: function () {
                             ctx.store.setConnection({ host: d.host, port: d.port, password: ctx.store.get().connection.password });
                             ctx.store.save();
@@ -239,18 +238,18 @@ window.App.viewTech = (function () {
                 }
                 redraw();
             }
-        }, [t('tech.reloadInputs')]);
+        }, [i18next.t('tech.reloadInputs')]);
 
         return el('div', { class: 'block' }, [
-            el('div', { class: 'block-titel', text: t('tech.sourcesHeading') }),
+            el('div', { class: 'block-titel', text: i18next.t('tech.sourcesHeading') }),
             sources.length > 0 ? el('div', { class: 'quellzeile kopf' }, [
                 el('span'),
-                el('span', { text: t('tech.sourceInputColumn') }),
-                el('span', { text: t('tech.sourceLabelColumn') }),
-                el('span', { class: 'haken', text: t('tech.sourceVisibleColumn') })
+                el('span', { text: i18next.t('tech.sourceInputColumn') }),
+                el('span', { text: i18next.t('tech.sourceLabelColumn') }),
+                el('span', { class: 'haken', text: i18next.t('tech.sourceVisibleColumn') })
             ]) : null
         ].concat(rows).concat([
-            sources.length === 0 ? el('p', { class: 'assistent-text', text: t('tech.noInputsYet') }) : null,
+            sources.length === 0 ? el('p', { class: 'assistent-text', text: i18next.t('tech.noInputsYet') }) : null,
             el('div', { class: 'knopfzeile' }, [reloadButton])
         ]));
     }
@@ -258,9 +257,9 @@ window.App.viewTech = (function () {
     // ---------- Extra features (PJLink Class 2) ----------
 
     function resolutionText(a) {
-        if (!a) return t('common.unknown');
-        if (a.code === '-') return t('tech.noSignal');
-        if (a.code === '*') return t('tech.signalNotRecognized');
+        if (!a) return i18next.t('common.unknown');
+        if (a.code === '-') return i18next.t('tech.noSignal');
+        if (a.code === '*') return i18next.t('tech.signalNotRecognized');
         return a.code;
     }
 
@@ -306,9 +305,9 @@ window.App.viewTech = (function () {
         }
 
         const confirmed = await ui.confirmDialog({
-            title: t('tech.applyInputNamesConfirmTitle'),
-            text: t('tech.applyInputNamesConfirmText'),
-            confirm: t('tech.applyInputNamesConfirmYes')
+            title: i18next.t('tech.applyInputNamesConfirmTitle'),
+            text: i18next.t('tech.applyInputNamesConfirmText'),
+            confirm: i18next.t('tech.applyInputNamesConfirmYes')
         });
         if (!confirmed) return;
 
@@ -341,13 +340,13 @@ window.App.viewTech = (function () {
         const projectorClass = state.pjlinkClass;
         const classSource = state.pjlinkClassSource;
 
-        const children = [el('div', { class: 'block-titel', text: t('tech.class2Heading') })];
+        const children = [el('div', { class: 'block-titel', text: i18next.t('tech.class2Heading') })];
 
         // As long as no connection has been made, what the device can do is
         // unknown. Offering nothing at all here is more honest than checkboxes
         // that might lead nowhere.
         if (projectorClass === null) {
-            children.push(el('p', { class: 'hinweis', text: t('tech.class2Unknown') }));
+            children.push(el('p', { class: 'hinweis', text: i18next.t('tech.class2Unknown') }));
             return el('div', { class: 'block' }, children);
         }
 
@@ -356,14 +355,14 @@ window.App.viewTech = (function () {
             // same: one is information from the device, the other only a
             // precautionary assumption by the app.
             if (classSource === 'reported') {
-                children.push(el('p', { class: 'hinweis', text: t('tech.class1Reported') }));
+                children.push(el('p', { class: 'hinweis', text: i18next.t('tech.class1Reported') }));
             } else {
-                children.push(el('p', { class: 'hinweis', text: t('tech.class1Assumed') }));
+                children.push(el('p', { class: 'hinweis', text: i18next.t('tech.class1Assumed') }));
             }
             return el('div', { class: 'block' }, children);
         }
 
-        children.push(el('p', { class: 'hinweis', text: t('tech.class2Available') }));
+        children.push(el('p', { class: 'hinweis', text: i18next.t('tech.class2Available') }));
 
         children.push(el('div', { class: 'funktionsliste' }, FEATURES.map(function (f) {
             const enabled = ctx.store.isClass2FeatureEnabled(f.key);
@@ -383,7 +382,7 @@ window.App.viewTech = (function () {
                 }),
                 el('span', {}, [
                     el('span', { class: 'funktion-titel', text: featureTitle(f.key) }),
-                    el('span', { class: 'funktion-text', text: t('tech.features.' + f.key + '.description') })
+                    el('span', { class: 'funktion-text', text: i18next.t('tech.features.' + f.key + '.description') })
                 ])
             ]);
         })));
@@ -400,14 +399,14 @@ window.App.viewTech = (function () {
                 class: 'knopf',
                 disabled: class2Loading,
                 onclick: function () { fetchClass2Values(); }
-            }, [class2Loading ? t('tech.querying') : t('tech.fetchValues')]));
+            }, [class2Loading ? i18next.t('tech.querying') : i18next.t('tech.fetchValues')]));
         }
 
         if (ctx.store.isClass2FeatureEnabled('inputNames')) {
             buttons.push(el('button', {
                 class: 'knopf',
                 onclick: function () { applyInputNames(); }
-            }, [t('tech.applyInputNames')]));
+            }, [i18next.t('tech.applyInputNames')]));
         }
 
         if (buttons.length) children.push(el('div', { class: 'knopfzeile' }, buttons));
@@ -415,20 +414,20 @@ window.App.viewTech = (function () {
         const values = [];
 
         if (class2Values.details) {
-            values.push(valueRow(t('tech.serialNumber'), class2Values.details.serialNumber || t('common.unknown')));
-            values.push(valueRow(t('tech.softwareVersion'), class2Values.details.softwareVersion || t('common.unknown')));
+            values.push(valueRow(i18next.t('tech.serialNumber'), class2Values.details.serialNumber || i18next.t('common.unknown')));
+            values.push(valueRow(i18next.t('tech.softwareVersion'), class2Values.details.softwareVersion || i18next.t('common.unknown')));
         }
 
         if (class2Values.resolution) {
-            values.push(valueRow(t('tech.currentResolution'), resolutionText(class2Values.resolution.input)));
-            values.push(valueRow(t('tech.recommendedResolution'), resolutionText(class2Values.resolution.recommended)));
+            values.push(valueRow(i18next.t('tech.currentResolution'), resolutionText(class2Values.resolution.input)));
+            values.push(valueRow(i18next.t('tech.recommendedResolution'), resolutionText(class2Values.resolution.recommended)));
         }
 
         if (class2Values.maintenance) {
             const m = class2Values.maintenance;
-            values.push(valueRow(t('tech.filterHours'), m.filterHours === null ? t('common.unknown') : t('tech.hours', { count: m.filterHours })));
-            values.push(valueRow(t('tech.replacementLamp'), m.lampModels.length ? m.lampModels.join(', ') : t('tech.noneSpecified')));
-            values.push(valueRow(t('tech.replacementFilter'), m.filterModels.length ? m.filterModels.join(', ') : t('tech.noneSpecified')));
+            values.push(valueRow(i18next.t('tech.filterHours'), m.filterHours === null ? i18next.t('common.unknown') : i18next.t('tech.hours', { count: m.filterHours })));
+            values.push(valueRow(i18next.t('tech.replacementLamp'), m.lampModels.length ? m.lampModels.join(', ') : i18next.t('tech.noneSpecified')));
+            values.push(valueRow(i18next.t('tech.replacementFilter'), m.filterModels.length ? m.filterModels.join(', ') : i18next.t('tech.noneSpecified')));
         }
 
         if (values.length) children.push(el('div', { class: 'werte' }, values));
@@ -454,11 +453,11 @@ window.App.viewTech = (function () {
         }
 
         return el('div', { class: 'block' }, [
-            el('div', { class: 'block-titel', text: t('tech.appearanceHeading') }),
+            el('div', { class: 'block-titel', text: i18next.t('tech.appearanceHeading') }),
             el('div', { class: 'wahl' }, [
-                choice('system', t('tech.themeSystem')),
-                choice('light', t('tech.themeLight')),
-                choice('dark', t('tech.themeDark'))
+                choice('system', i18next.t('tech.themeSystem')),
+                choice('light', i18next.t('tech.themeLight')),
+                choice('dark', i18next.t('tech.themeDark'))
             ]),
             el('div', { class: 'knopfzeile' }, [
                 el('label', {}, [
@@ -467,7 +466,7 @@ window.App.viewTech = (function () {
                         checked: ctx.theme.getHighContrast(),
                         onchange: function (e) { ctx.theme.setHighContrast(e.target.checked); redraw(); }
                     }),
-                    t('tech.highContrast')
+                    i18next.t('tech.highContrast')
                 ])
             ])
         ]);
@@ -477,7 +476,7 @@ window.App.viewTech = (function () {
 
     function languageBlock() {
         return el('div', { class: 'block' }, [
-            el('div', { class: 'block-titel', text: t('tech.languageHeading') }),
+            el('div', { class: 'block-titel', text: i18next.t('tech.languageHeading') }),
             el('div', { class: 'wahl' }, [
                 ui.languageSelect({
                     chosen: ctx.store.getLanguage(),
@@ -495,8 +494,8 @@ window.App.viewTech = (function () {
         });
 
         return el('div', { class: 'block' }, [
-            el('div', { class: 'block-titel', text: t('tech.logHeading') }),
-            el('div', { class: 'protokoll' }, rows.length ? rows : [el('div', { text: t('tech.logEmpty') })]),
+            el('div', { class: 'block-titel', text: i18next.t('tech.logHeading') }),
+            el('div', { class: 'protokoll' }, rows.length ? rows : [el('div', { text: i18next.t('tech.logEmpty') })]),
             el('div', { class: 'knopfzeile' }, [
                 el('button', {
                     class: 'knopf',
@@ -506,14 +505,14 @@ window.App.viewTech = (function () {
                         ctx.log.add('Activity log copied', 'info');
                         redraw();
                     }
-                }, [t('tech.copyLog')]),
+                }, [i18next.t('tech.copyLog')]),
                 el('button', {
                     class: 'knopf',
                     onclick: async function () {
                         const confirmed = await ui.confirmDialog({
-                            title: t('tech.restartSetupConfirmTitle'),
-                            text: t('tech.restartSetupConfirmText'),
-                            confirm: t('tech.restartSetupConfirmYes')
+                            title: i18next.t('tech.restartSetupConfirmTitle'),
+                            text: i18next.t('tech.restartSetupConfirmText'),
+                            confirm: i18next.t('tech.restartSetupConfirmYes')
                         });
                         if (!confirmed) return;
                         ctx.projector.stop();
@@ -524,7 +523,7 @@ window.App.viewTech = (function () {
                         window.App.viewSetup.restart();
                         window.App.showView('setup');
                     }
-                }, [t('tech.restartSetup')])
+                }, [i18next.t('tech.restartSetup')])
             ])
         ]);
     }
@@ -533,7 +532,7 @@ window.App.viewTech = (function () {
         if (!root) root = document.getElementById('ansicht-tech');
         ui.clear(root);
         root.appendChild(el('div', { class: 'ansicht-innen' }, [
-            el('button', { class: 'knopf text zurueck', text: t('tech.backToOperate'), onclick: function () { window.App.showView('operate'); } }),
+            el('button', { class: 'knopf text zurueck', text: i18next.t('tech.backToOperate'), onclick: function () { window.App.showView('operate'); } }),
             connectionBlock(),
             sourcesBlock(),
             class2Block(),

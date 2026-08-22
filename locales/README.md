@@ -3,6 +3,9 @@
 Every user-facing text in this app lives here, as plain JSON. Translating the
 app never means editing JavaScript.
 
+The app uses [i18next](https://www.i18next.com/); these files are passed to it
+as its `resources`, so anything i18next understands works here.
+
 ## Adding a language
 
 Copy `en.json` to `<code>.json`, translate the values, open a pull request.
@@ -39,11 +42,28 @@ alphabetically by the name it calls itself.
 
 ## Rules that are easy to get wrong
 
-**Placeholders in curly braces must survive the translation.**
-`"{checked} of {total} addresses checked"` — the names inside the braces are
-filled in by the app and must stay exactly as they are, though you may move
-them around to suit your language's word order. A placeholder that is renamed
-or dropped shows up literally on screen.
+**Placeholders use double curly braces and must survive the translation.**
+`"{{checked}} of {{total}} addresses checked"` — the names inside the braces
+are filled in by the app and must stay exactly as they are, though you may
+move them around to suit your language's word order. A placeholder that is
+renamed or dropped shows up literally on screen. Single braces are not
+placeholders and will not be filled in.
+
+**Plurals.** Keys ending in `_one`, `_other` and so on are
+[i18next plurals](https://www.i18next.com/translation-function/plurals): the
+app passes a `count` and i18next picks the form. German and English need only
+`_one` and `_other`, but your language may need more — Polish, for instance,
+takes `_one`, `_few` and `_many`, and you can simply add them:
+
+```json
+"found_one":  "Znaleziono 1 urządzenie",
+"found_few":  "Znaleziono {{count}} urządzenia",
+"found_many": "Znaleziono {{count}} urządzeń"
+```
+
+No code changes are needed for that; i18next works the extra forms out from
+the language code. The key-parity check mentioned below knows about plural
+suffixes and will not complain.
 
 **Some values begin with a space.** `operate.switching` and
 `tech.highContrast` are appended to something else, so their leading space is

@@ -20,8 +20,10 @@
     <main class="ansicht" id="ansicht-tech"></main>
     <main class="ansicht" id="ansicht-setup"></main>
 
-    <!-- The translation helper first: everything below calls t(). The texts
-         themselves come from locales/*.json, handed over by preload.js. -->
+    <!-- i18next first, then our setup around it: everything below calls
+         i18next.t(). The texts come from locales/*.json, read by the main
+         process and handed over by preload.js. -->
+    <script src="vendor/i18next.min.js"></script>
     <script src="js/i18n/index.js"></script>
 
     <script src="js/api.js"></script>

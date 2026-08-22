@@ -6,7 +6,6 @@ window.App = window.App || {};
 window.App.viewOperate = (function () {
     const ui = window.App.ui;
     const el = ui.el;
-    const t = window.App.i18n.t;
 
     // The raw PJLink names (RGB, DIGITAL, …) mean nothing to anyone.
     // The first digit of the code is the kind of connector.
@@ -14,7 +13,7 @@ window.App.viewOperate = (function () {
 
     function connectorName(code) {
         const type = CONNECTOR_TYPES[code.charAt(0)] || 'other';
-        return t('operate.connectorName', { type: t('operate.connector.' + type), channel: code.charAt(1) });
+        return i18next.t('operate.connectorName', { type: i18next.t('operate.connector.' + type), channel: code.charAt(1) });
     }
 
     let ctx = null;
@@ -64,8 +63,8 @@ window.App.viewOperate = (function () {
 
     function errorText(raw) {
         const key = ERROR_TEXT_KEYS[raw];
-        if (key) return t(key);
-        return raw || t('operate.errors.generic');
+        if (key) return i18next.t(key);
+        return raw || i18next.t('operate.errors.generic');
     }
 
     // ---------- Building blocks ----------
@@ -73,13 +72,13 @@ window.App.viewOperate = (function () {
     function errorBanner(state) {
         return el('div', { class: 'streifen fehler' }, [
             el('div', {}, [
-                el('div', { class: 'streifen-titel', text: t('operate.commandFailedTitle') }),
+                el('div', { class: 'streifen-titel', text: i18next.t('operate.commandFailedTitle') }),
                 el('div', { class: 'streifen-text', text: errorText(state.commandError) })
             ]),
             el('button', {
                 class: 'streifen-knopf',
                 onclick: function () { ctx.projector.dismissError(); }
-            }, [t('operate.gotIt')])
+            }, [i18next.t('operate.gotIt')])
         ]);
     }
 
@@ -103,8 +102,8 @@ window.App.viewOperate = (function () {
         }
 
         const chips = [
-            chip(t('operate.hideVideo'), '🚫', state.mute.video, { video: !state.mute.video, audio: state.mute.audio }),
-            chip(t('operate.muteAudio'), '🔇', state.mute.audio, { video: state.mute.video, audio: !state.mute.audio })
+            chip(i18next.t('operate.hideVideo'), '🚫', state.mute.video, { video: !state.mute.video, audio: state.mute.audio }),
+            chip(i18next.t('operate.muteAudio'), '🔇', state.mute.audio, { video: state.mute.video, audio: !state.mute.audio })
         ];
 
         // Freeze — unlike volume — does have a query and therefore runs through
@@ -118,13 +117,13 @@ window.App.viewOperate = (function () {
                     run(function () { return ctx.projector.setFreeze(!state.freeze); },
                         state.freeze ? 'Freeze lifted' : 'Freeze switched on');
                 }
-            }, [pending ? spinner() : '❄ ', t('operate.freeze')]));
+            }, [pending ? spinner() : '❄ ', i18next.t('operate.freeze')]));
         }
 
         return el('div', { class: 'statuszeile' }, [
             el('div', { class: 'status' }, [
                 el('span', { class: 'punkt an' }),
-                t('operate.running')
+                i18next.t('operate.running')
             ]),
             el('div', { class: 'chips' }, chips)
         ]);
@@ -147,30 +146,30 @@ window.App.viewOperate = (function () {
                     el('button', {
                         class: 'knopf lautstaerke',
                         disabled: locked,
-                        title: t('operate.volumeDownTitle', { label: label }),
+                        title: i18next.t('operate.volumeDownTitle', { label: label }),
                         onclick: function () { run(down); }
-                    }, [t('operate.volumeDown')]),
+                    }, [i18next.t('operate.volumeDown')]),
                     el('button', {
                         class: 'knopf lautstaerke',
                         disabled: locked,
-                        title: t('operate.volumeUpTitle', { label: label }),
+                        title: i18next.t('operate.volumeUpTitle', { label: label }),
                         onclick: function () { run(up); }
-                    }, [t('operate.volumeUp')])
+                    }, [i18next.t('operate.volumeUp')])
                 ])
             ]);
         }
 
         return el('div', {}, [
-            el('div', { class: 'feldname', text: t('operate.volumeHeading') }),
+            el('div', { class: 'feldname', text: i18next.t('operate.volumeHeading') }),
             el('div', { class: 'lautstaerke' }, [
-                pair(t('operate.audio'),
+                pair(i18next.t('operate.audio'),
                     function () { return ctx.projector.speakerVolumeDown(); },
                     function () { return ctx.projector.speakerVolumeUp(); }),
-                pair(t('operate.microphone'),
+                pair(i18next.t('operate.microphone'),
                     function () { return ctx.projector.microphoneVolumeDown(); },
                     function () { return ctx.projector.microphoneVolumeUp(); })
             ]),
-            el('p', { class: 'hinweis', text: t('operate.volumeHint') })
+            el('p', { class: 'hinweis', text: i18next.t('operate.volumeHint') })
         ]);
     }
 
@@ -181,8 +180,8 @@ window.App.viewOperate = (function () {
 
         if (sources.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'feldname', text: t('operate.sourceHeading') }),
-                el('p', { class: 'mitte-text', text: t('operate.noSources') })
+                el('div', { class: 'feldname', text: i18next.t('operate.sourceHeading') }),
+                el('p', { class: 'mitte-text', text: i18next.t('operate.noSources') })
             ]);
         }
 
@@ -200,7 +199,7 @@ window.App.viewOperate = (function () {
             }, [
                 q.label,
                 switching
-                    ? el('span', { class: 'unter' }, [spinner(), t('operate.switching')])
+                    ? el('span', { class: 'unter' }, [spinner(), i18next.t('operate.switching')])
                     : el('span', { class: 'unter', text: connectorName(q.code) })
             ]);
         });
@@ -212,12 +211,12 @@ window.App.viewOperate = (function () {
         if (state.sourceCode && !known) {
             tiles.push(el('div', { class: 'kachel aktiv' }, [
                 state.sourceName || connectorName(state.sourceCode),
-                el('span', { class: 'unter', text: t('operate.notConfigured') })
+                el('span', { class: 'unter', text: i18next.t('operate.notConfigured') })
             ]));
         }
 
         return el('div', {}, [
-            el('div', { class: 'feldname', text: t('operate.sourceHeading') }),
+            el('div', { class: 'feldname', text: i18next.t('operate.sourceHeading') }),
             el('div', { class: 'kacheln' }, tiles)
         ]);
     }
@@ -228,14 +227,14 @@ window.App.viewOperate = (function () {
             disabled: isBusy(state),
             onclick: async function () {
                 const confirmed = await ui.confirmDialog({
-                    title: t('operate.powerOffConfirmTitle'),
-                    text: t('operate.powerOffConfirmText'),
-                    confirm: t('operate.powerOffConfirmYes'),
-                    cancel: t('common.cancel')
+                    title: i18next.t('operate.powerOffConfirmTitle'),
+                    text: i18next.t('operate.powerOffConfirmText'),
+                    confirm: i18next.t('operate.powerOffConfirmYes'),
+                    cancel: i18next.t('common.cancel')
                 });
                 if (confirmed) run(function () { return ctx.projector.powerOff(); }, 'Switch-off requested');
             }
-        }, [t('operate.powerOff')]);
+        }, [i18next.t('operate.powerOff')]);
     }
 
     function centered(title, text, button) {
@@ -258,17 +257,17 @@ window.App.viewOperate = (function () {
 
     function contentFor(state) {
         if (state.link === 'connecting') {
-            return waiting(t('operate.connectingTitle'), t('operate.connectingText'));
+            return waiting(i18next.t('operate.connectingTitle'), i18next.t('operate.connectingText'));
         }
 
         if (state.link === 'offline') {
             return centered(
-                t('operate.offlineTitle'),
-                t('operate.offlineText'),
+                i18next.t('operate.offlineTitle'),
+                i18next.t('operate.offlineText'),
                 el('button', {
                     class: 'knopf',
                     onclick: function () { ctx.projector.refreshNow(); }
-                }, [t('operate.retry')])
+                }, [i18next.t('operate.retry')])
             );
         }
 
@@ -276,29 +275,29 @@ window.App.viewOperate = (function () {
         // the projector reports the new state. Otherwise the switch-on button
         // would still be sitting there while the projector is already starting up.
         if (state.pending && state.pending.kind === 'power-on') {
-            return waiting(t('operate.poweringOnTitle'), t('operate.poweringOnText'));
+            return waiting(i18next.t('operate.poweringOnTitle'), i18next.t('operate.poweringOnText'));
         }
 
         if (state.pending && state.pending.kind === 'power-off') {
-            return waiting(t('operate.poweringOffTitle'), t('operate.poweringOffText'));
+            return waiting(i18next.t('operate.poweringOffTitle'), i18next.t('operate.poweringOffText'));
         }
 
         if (state.power === 'warming') {
-            return waiting(t('operate.warmingTitle'), t('operate.warmingText'));
+            return waiting(i18next.t('operate.warmingTitle'), i18next.t('operate.warmingText'));
         }
 
         if (state.power === 'cooling') {
-            return waiting(t('operate.coolingTitle'), t('operate.coolingText'));
+            return waiting(i18next.t('operate.coolingTitle'), i18next.t('operate.coolingText'));
         }
 
         if (state.power === 'off' || state.power === 'unknown') {
             return centered(
-                t('operate.offTitle'),
+                i18next.t('operate.offTitle'),
                 null,
                 el('button', {
                     class: 'knopf haupt gross',
                     onclick: function () { run(function () { return ctx.projector.powerOn(); }, 'Switch-on requested'); }
-                }, [t('operate.powerOn')])
+                }, [i18next.t('operate.powerOn')])
             );
         }
 
@@ -308,8 +307,8 @@ window.App.viewOperate = (function () {
         if (state.mute.video) {
             parts.push(el('div', { class: 'streifen' }, [
                 el('div', {}, [
-                    el('div', { class: 'streifen-titel', text: t('operate.videoMutedTitle') }),
-                    el('div', { class: 'streifen-text', text: t('operate.videoMutedText') })
+                    el('div', { class: 'streifen-titel', text: i18next.t('operate.videoMutedTitle') }),
+                    el('div', { class: 'streifen-text', text: i18next.t('operate.videoMutedText') })
                 ]),
                 el('button', {
                     class: 'streifen-knopf',
@@ -319,7 +318,7 @@ window.App.viewOperate = (function () {
                             return ctx.projector.setMute({ video: false, audio: state.mute.audio });
                         }, 'Picture shown again');
                     }
-                }, [t('operate.showVideo')])
+                }, [i18next.t('operate.showVideo')])
             ]));
         }
 

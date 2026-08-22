@@ -16,7 +16,8 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "extend": "~3.0.0"
+    "extend": "~3.0.0",
+    "i18next": "^26.4.0"
   },
   "devDependencies": {
     "electron": "^27.0.0",
@@ -42,16 +43,38 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "publisherName": "Ihre Kirche",
       "verifyUpdateCodeSignature": false
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.utilities",
       "hardenedRuntime": false,

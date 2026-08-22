@@ -1,7 +1,6 @@
 // Tiny DOM helpers and the confirmation dialog. No state, no network logic.
 window.App = window.App || {};
 window.App.ui = (function () {
-    const t = window.App.i18n.t;
 
     // el('div', {class:'x', onclick:fn}, ['Text', otherNode])
     function el(tag, attrs, children) {
@@ -51,8 +50,8 @@ window.App.ui = (function () {
                 el('h2', { text: opt.title }),
                 el('p', { text: opt.text }),
                 el('div', { class: 'dialog-knoepfe' }, [
-                    el('button', { class: 'knopf', text: opt.cancel || t('common.cancel'), onclick: function () { close(false); } }),
-                    el('button', { class: 'knopf haupt', text: opt.confirm || t('common.yes'), onclick: function () { close(true); } })
+                    el('button', { class: 'knopf', text: opt.cancel || i18next.t('common.cancel'), onclick: function () { close(false); } }),
+                    el('button', { class: 'knopf haupt', text: opt.confirm || i18next.t('common.yes'), onclick: function () { close(true); } })
                 ])
             ]);
 
@@ -70,7 +69,7 @@ window.App.ui = (function () {
     function languageSelect(opt) {
         const i18n = window.App.i18n;
 
-        const options = [el('option', { value: '', text: t('tech.languageSystem') })];
+        const options = [el('option', { value: '', text: i18next.t('tech.languageSystem') })];
         i18n.languagesByName().forEach(function (code) {
             options.push(el('option', { value: code, text: i18n.languageName(code) }));
         });

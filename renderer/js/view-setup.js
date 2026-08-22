@@ -6,7 +6,6 @@ window.App = window.App || {};
 window.App.viewSetup = (function () {
     const ui = window.App.ui;
     const el = ui.el;
-    const t = window.App.i18n.t;
 
     let ctx = null;
     let root = null;
@@ -41,7 +40,7 @@ window.App.viewSetup = (function () {
             return el('span', { class: cssClass, text: n < step ? '✓' : String(n) });
         });
         return el('div', { class: 'schritte' }, dots.concat([
-            el('span', { class: 'feld-lab', text: t('setup.wizardLabel') }),
+            el('span', { class: 'feld-lab', text: i18next.t('setup.wizardLabel') }),
             languageChoice()
         ]));
     }
@@ -85,12 +84,12 @@ window.App.viewSetup = (function () {
         return el('div', { class: 'trefferliste' }, scan.devices.map(function (d) {
             return el('div', { class: 'treffer' }, [
                 el('span', {}, [
-                    el('strong', { text: d.name || t('common.pjlinkDevice') }),
+                    el('strong', { text: d.name || i18next.t('common.pjlinkDevice') }),
                     el('span', { class: 'treffer-host', text: '   ' + d.host })
                 ]),
                 el('button', {
                     class: 'knopf text',
-                    text: t('setup.select'),
+                    text: i18next.t('setup.select'),
                     onclick: function () { selection = d; step = 2; checkMessage = ''; redraw(); }
                 })
             ]);
@@ -104,12 +103,12 @@ window.App.viewSetup = (function () {
             bar.firstChild.style.width = percent + '%';
 
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: t('common.scanRunning') }),
-                el('div', { class: 'assistent-text', text: t('setup.scanDuration') }),
+                el('div', { class: 'assistent-titel', text: i18next.t('common.scanRunning') }),
+                el('div', { class: 'assistent-text', text: i18next.t('setup.scanDuration') }),
                 bar,
                 el('div', {
                     class: 'feld-lab',
-                    text: t('common.scanProgress', { checked: scan.checked, total: scan.total, found: scan.devices.length })
+                    text: i18next.t('common.scanProgress', { checked: scan.checked, total: scan.total, found: scan.devices.length })
                 }),
                 resultList()
             ]);
@@ -117,45 +116,47 @@ window.App.viewSetup = (function () {
 
         if (scan.done && scan.devices.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: t('setup.noneFoundTitle') }),
-                el('div', { class: 'assistent-text', text: t('setup.noneFoundIntro') }),
+                el('div', { class: 'assistent-titel', text: i18next.t('setup.noneFoundTitle') }),
+                el('div', { class: 'assistent-text', text: i18next.t('setup.noneFoundIntro') }),
                 el('ul', { class: 'pruefliste' }, [
-                    el('li', { text: t('setup.noneFoundReasonOff') }),
-                    el('li', { text: t('setup.noneFoundReasonStandby') }),
-                    el('li', { text: t('setup.noneFoundReasonPjlink') }),
-                    el('li', { text: t('setup.noneFoundReasonNetwork') })
+                    el('li', { text: i18next.t('setup.noneFoundReasonOff') }),
+                    el('li', { text: i18next.t('setup.noneFoundReasonStandby') }),
+                    el('li', { text: i18next.t('setup.noneFoundReasonPjlink') }),
+                    el('li', { text: i18next.t('setup.noneFoundReasonNetwork') })
                 ]),
                 el('div', { class: 'knopfzeile' }, [
-                    el('button', { class: 'knopf haupt', onclick: startScan }, [t('common.searchAgain')]),
-                    el('button', { class: 'knopf text', onclick: enterManually }, [t('common.enterIpManually')])
+                    el('button', { class: 'knopf haupt', onclick: startScan }, [i18next.t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: enterManually }, [i18next.t('common.enterIpManually')])
                 ])
             ]);
         }
 
         if (scan.done) {
             return el('div', {}, [
+                // i18next picks found_one or found_other from `count` — the
+                // singular/plural branch that used to sit here is its job.
+                // A language with more plural forms than German or English only
+                // has to add found_few and so on to its locale file.
                 el('div', {
                     class: 'assistent-titel',
-                    text: scan.devices.length === 1
-                        ? t('setup.foundOne')
-                        : t('setup.foundMany', { count: scan.devices.length })
+                    text: i18next.t('setup.found', { count: scan.devices.length })
                 }),
-                el('div', { class: 'assistent-text', text: t('setup.chooseDevice') }),
+                el('div', { class: 'assistent-text', text: i18next.t('setup.chooseDevice') }),
                 resultList(),
                 el('div', { class: 'knopfzeile' }, [
-                    el('button', { class: 'knopf', onclick: startScan }, [t('common.searchAgain')]),
-                    el('button', { class: 'knopf text', onclick: enterManually }, [t('common.enterIpManually')])
+                    el('button', { class: 'knopf', onclick: startScan }, [i18next.t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: enterManually }, [i18next.t('common.enterIpManually')])
                 ])
             ]);
         }
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: t('setup.whereTitle') }),
-            el('div', { class: 'assistent-text', text: t('setup.whereText') }),
+            el('div', { class: 'assistent-titel', text: i18next.t('setup.whereTitle') }),
+            el('div', { class: 'assistent-text', text: i18next.t('setup.whereText') }),
             el('div', { class: 'knopfzeile' }, [
-                el('button', { class: 'knopf haupt', onclick: startScan }, [t('setup.searchProjectors')])
+                el('button', { class: 'knopf haupt', onclick: startScan }, [i18next.t('setup.searchProjectors')])
             ]),
-            el('button', { class: 'knopf text', onclick: enterManually }, [t('setup.enterIpInstead')])
+            el('button', { class: 'knopf text', onclick: enterManually }, [i18next.t('setup.enterIpInstead')])
         ]);
     }
 
@@ -175,19 +176,19 @@ window.App.viewSetup = (function () {
     }
 
     function step2() {
-        const hostField = el('input', { class: 'eingabe', value: selection.host, type: 'text', placeholder: t('common.hostPlaceholder') });
-        const passwordField = el('input', { class: 'eingabe', value: password, type: 'password', placeholder: t('common.passwordPlaceholder') });
+        const hostField = el('input', { class: 'eingabe', value: selection.host, type: 'text', placeholder: i18next.t('common.hostPlaceholder') });
+        const passwordField = el('input', { class: 'eingabe', value: password, type: 'password', placeholder: i18next.t('common.passwordPlaceholder') });
 
         return el('div', {}, [
             el('div', {
                 class: 'assistent-titel',
-                text: selection.name ? t('setup.deviceFound', { name: selection.name }) : t('setup.enterIpTitle')
+                text: selection.name ? i18next.t('setup.deviceFound', { name: selection.name }) : i18next.t('setup.enterIpTitle')
             }),
-            el('div', { class: 'assistent-text', text: t('setup.passwordHint') }),
+            el('div', { class: 'assistent-text', text: i18next.t('setup.passwordHint') }),
             el('div', { class: 'felder' }, [
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.ipAddress') }), hostField]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.port') }), el('input', { class: 'eingabe', value: String(selection.port || 4352), type: 'number', disabled: true })]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.password') }), passwordField])
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('common.ipAddress') }), hostField]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('common.port') }), el('input', { class: 'eingabe', value: String(selection.port || 4352), type: 'number', disabled: true })]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('common.password') }), passwordField])
             ]),
             checkMessage ? el('div', { class: 'knopfzeile' }, [
                 el('span', { class: 'verbindungsstand' }, [el('span', { class: 'punkt' + (checkLevel === 'ok' ? ' an' : '') }), checkMessage])
@@ -199,12 +200,12 @@ window.App.viewSetup = (function () {
                         selection.host = hostField.value.trim();
                         password = passwordField.value.trim();
                         if (!selection.host) {
-                            checkMessage = t('setup.ipRequired');
+                            checkMessage = i18next.t('setup.ipRequired');
                             checkLevel = 'error';
                             redraw();
                             return;
                         }
-                        checkMessage = t('common.connecting');
+                        checkMessage = i18next.t('common.connecting');
                         checkLevel = 'info';
                         redraw();
                         try {
@@ -214,13 +215,13 @@ window.App.viewSetup = (function () {
                             await loadInputs();
                             step = 3;
                         } catch (e) {
-                            checkMessage = t('common.connectionFailed', { message: e.message });
+                            checkMessage = i18next.t('common.connectionFailed', { message: e.message });
                             checkLevel = 'error';
                         }
                         redraw();
                     }
-                }, [t('common.next')]),
-                el('button', { class: 'knopf', onclick: function () { step = 1; checkMessage = ''; redraw(); } }, [t('setup.backToSearch')])
+                }, [i18next.t('common.next')]),
+                el('button', { class: 'knopf', onclick: function () { step = 1; checkMessage = ''; redraw(); } }, [i18next.t('setup.backToSearch')])
             ])
         ]);
     }
@@ -235,12 +236,12 @@ window.App.viewSetup = (function () {
     }
 
     function step3() {
-        const nextButton = el('button', { class: 'knopf haupt', onclick: applySources }, [t('common.next')]);
+        const nextButton = el('button', { class: 'knopf haupt', onclick: applySources }, [i18next.t('common.next')]);
 
         if (draftSources.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: t('setup.noInputsTitle') }),
-                el('div', { class: 'assistent-text', text: t('setup.noInputsText') }),
+                el('div', { class: 'assistent-titel', text: i18next.t('setup.noInputsTitle') }),
+                el('div', { class: 'assistent-text', text: i18next.t('setup.noInputsText') }),
                 el('div', { class: 'knopfzeile' }, [nextButton])
             ]);
         }
@@ -265,13 +266,13 @@ window.App.viewSetup = (function () {
         });
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: t('setup.nameInputsTitle') }),
-            el('div', { class: 'assistent-text', text: t('setup.nameInputsText') }),
+            el('div', { class: 'assistent-titel', text: i18next.t('setup.nameInputsTitle') }),
+            el('div', { class: 'assistent-text', text: i18next.t('setup.nameInputsText') }),
             el('div', { class: 'quellzeile kopf' }, [
                 el('span'),
-                el('span', { text: t('setup.inputColumn') }),
-                el('span', { text: t('setup.nameColumn') }),
-                el('span', { class: 'haken', text: t('setup.showColumn') })
+                el('span', { text: i18next.t('setup.inputColumn') }),
+                el('span', { text: i18next.t('setup.nameColumn') }),
+                el('span', { class: 'haken', text: i18next.t('setup.showColumn') })
             ])
         ].concat(rows).concat([
             el('div', { class: 'knopfzeile' }, [nextButton])
@@ -283,12 +284,12 @@ window.App.viewSetup = (function () {
     function step4() {
         const visible = ctx.store.get().sources.filter(function (s) { return s.visible; });
         const sourceText = visible.length
-            ? t('setup.doneSourceCount', { count: visible.length })
-            : t('setup.doneNoSources');
+            ? i18next.t('setup.doneSourceCount', { count: visible.length })
+            : i18next.t('setup.doneNoSources');
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: t('setup.doneTitle') }),
-            el('div', { class: 'assistent-text', text: t('setup.doneText', { sources: sourceText }) }),
+            el('div', { class: 'assistent-titel', text: i18next.t('setup.doneTitle') }),
+            el('div', { class: 'assistent-text', text: i18next.t('setup.doneText', { sources: sourceText }) }),
             el('div', { class: 'knopfzeile' }, [
                 el('button', {
                     class: 'knopf haupt',
@@ -299,7 +300,7 @@ window.App.viewSetup = (function () {
                         ctx.projector.refreshNow();
                         window.App.showView('operate');
                     }
-                }, [t('setup.toOperate')])
+                }, [i18next.t('setup.toOperate')])
             ])
         ]);
     }

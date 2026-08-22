@@ -1,89 +1,88 @@
-// Translation helper. Knows no DOM and no projector, so it runs in the renderer
-// and in Node (for the tests) alike.
+// Sets i18next up and adds the two things it does not concern itself with:
+// what a language calls itself, and which languages we ship.
 //
-// The texts live in locales/*.json — plain data, so that translating this app
-// never means editing JavaScript. Adding a language means adding one file;
-// nothing in here has to change.
+// Everything else goes straight through i18next — i18next.t() for lookups,
+// i18next.changeLanguage() for switching, fallbackLng for missing keys and for
+// languages that failed to load. There is no lookup logic of our own left.
 //
-// The JSON is never read by the renderer itself: under file:// with context
-// isolation, fetch() cannot reach a local file. Node reads it — the main
-// process and the tests do so directly, and the renderer gets the parsed
-// catalogs over the context bridge. The preload script cannot read them
-// either: it runs sandboxed, where require() has no fs.
+// The resources are not loaded here either. i18next's own loading is a backend
+// plugin built on fetch/XHR, which cannot reach a file:// path from a
+// context-isolated renderer. They are read by the main process (see
+// resources.js) and arrive over the context bridge as `window.i18nResources`.
 (function (root, factory) {
-    const api = factory(root);
+    // In the renderer i18next is the global from vendor/i18next.min.js; under
+    // Node (the tests) it comes from node_modules.
+    const i18next = (typeof module === 'object' && module.exports) ? require('i18next') : root.i18next;
+    const api = factory(i18next);
+
     if (typeof module === 'object' && module.exports) {
         module.exports = api;
     } else {
         root.App = root.App || {};
         root.App.i18n = api;
     }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (i18next) {
 
-    // The language every lookup falls back to: the one language guaranteed to
-    // carry a value for every key.
     const FALLBACK_LANGUAGE = 'en';
+    const NAMESPACE = 'translation';
 
-    let currentLanguage = FALLBACK_LANGUAGE;
+    // What was handed to init(). i18next keeps its own copy, but which
+    // languages this app ships is our question to answer, not one of its.
+    let resources = {};
 
-    // Reads every locales/*.json in a directory. The file name is the language
-    // code: de.json becomes "de".
+    // https://www.i18next.com/overview/getting-started
     //
-    // Node only. Nothing in here throws: a locale file that is missing or
-    // malformed — a contributor's bad pull request, someone editing by hand —
-    // costs that one language and nothing else. The app still starts, and
-    // whoever picked the broken language lands on English through
-    // setLanguage(), which only accepts a language that actually loaded.
-    function loadCatalogsFrom(directory) {
-        const fs = require('fs');
-        const path = require('path');
-        const loaded = {};
+    // `lng` is worked out by the app before this is called: the choice stored
+    // in beamer-settings.json, or else the operating system's locale. That is
+    // our business logic, which is why it arrives ready-made.
+    function init(language, initialResources) {
+        resources = initialResources || {};
 
-        let files;
-        try {
-            files = fs.readdirSync(directory).filter(function (name) { return name.endsWith('.json'); });
-        } catch (error) {
-            console.error('[i18n] cannot read the locales directory ' + directory + ': ' + error.message);
-            return loaded;
-        }
+        return new Promise(function (resolve, reject) {
+            i18next.init({
+                lng: language,
+                fallbackLng: FALLBACK_LANGUAGE,
+                resources: resources,
 
-        files.forEach(function (name) {
-            const code = name.slice(0, -'.json'.length);
-            try {
-                loaded[code] = JSON.parse(fs.readFileSync(path.join(directory, name), 'utf-8'));
-            } catch (error) {
-                console.error('[i18n] skipping locales/' + name + ': ' + error.message);
-            }
+                // The one default that is deliberately overridden.
+                //
+                // i18next escapes interpolated values for HTML, which is right
+                // when the result is written into innerHTML. Nothing here does
+                // that: every text goes onto the page through textContent (see
+                // ui.js), which does not parse markup. Left on, a projector
+                // reporting itself as "Sanyo & Co" would show up on screen as
+                // "Sanyo &amp; Co", and so would any error message containing
+                // a quote or an angle bracket.
+                //
+                // https://www.i18next.com/translation-function/interpolation#unescape
+                interpolation: { escapeValue: false },
+
+                // Off by default; switch it on while working on translations
+                // and i18next reports missing keys on the console.
+                debug: false
+            }, function (error) {
+                if (error) reject(error); else resolve(i18next);
+            });
         });
-
-        return loaded;
     }
 
-    // Under Node — the tests and the main process — the catalogs come straight
-    // off disk. In the renderer they are already sitting on `translations`,
-    // put there by the context bridge.
-    if (typeof module === 'object' && module.exports) {
-        const path = require('path');
-        root.translations = Object.assign(
-            root.translations || {},
-            loadCatalogsFrom(path.join(__dirname, '..', '..', '..', 'locales'))
-        );
-    }
-
-    function catalogs() {
-        return root.translations || {};
-    }
-
+    // The languages that actually loaded. A locale file that failed to parse
+    // never made it into the resources, so it is offered nowhere.
     function supportedLanguages() {
-        return Object.keys(catalogs()).sort();
+        return Object.keys(resources).sort();
     }
 
     // The name of a language, written in that language ("Deutsch", "English").
-    // It comes out of that language's own catalog, never out of the one in use:
-    // someone who cannot read the current language still has to find their own.
+    //
+    // getResource() rather than t(): it reads one language's own bundle and
+    // does not fall back. That is the whole point — the language picker has to
+    // stay readable for someone who cannot read the language currently set, so
+    // borrowing the English name for a catalog that forgot `languageName`
+    // would be exactly wrong. Falling back to the code makes the omission
+    // visible instead.
     function languageName(language) {
-        const own = lookup(catalogs()[language], 'languageName');
-        return own !== undefined ? own : language;
+        const own = i18next.getResource(language, NAMESPACE, 'languageName');
+        return typeof own === 'string' && own ? own : language;
     }
 
     // The shipped languages, sorted by the name each one calls itself — that is
@@ -94,83 +93,12 @@
         });
     }
 
-    function isSupported(language) {
-        return Object.prototype.hasOwnProperty.call(catalogs(), language);
-    }
-
-    // Walks a dotted key ("operate.powerOn") through a nested catalog.
-    function lookup(catalog, key) {
-        if (!catalog) return undefined;
-
-        const parts = key.split('.');
-        let node = catalog;
-
-        for (let i = 0; i < parts.length; i++) {
-            if (node === null || typeof node !== 'object') return undefined;
-            node = node[parts[i]];
-        }
-
-        return typeof node === 'string' ? node : undefined;
-    }
-
-    // Fills {placeholders} from `values`. A placeholder without a value stays
-    // as it is — that way a missing value shows up instead of vanishing.
-    function interpolate(text, values) {
-        if (!values) return text;
-
-        return text.replace(/\{(\w+)\}/g, function (whole, name) {
-            return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : whole;
-        });
-    }
-
-    // t('operate.powerOn') — the current language, then the fallback language,
-    // then the key itself. A key showing up on screen is a missing translation,
-    // which is easier to spot and to fix than an empty label.
-    function t(key, values, language) {
-        if (typeof key !== 'string' || key === '') return '';
-
-        const wanted = language || currentLanguage;
-        const text = lookup(catalogs()[wanted], key);
-        if (text !== undefined) return interpolate(text, values);
-
-        const fallback = lookup(catalogs()[FALLBACK_LANGUAGE], key);
-        if (fallback !== undefined) return interpolate(fallback, values);
-
-        return key;
-    }
-
-    function setLanguage(language) {
-        currentLanguage = isSupported(language) ? language : FALLBACK_LANGUAGE;
-        return currentLanguage;
-    }
-
-    function getCurrentLanguage() {
-        return currentLanguage;
-    }
-
-    // Turns an operating system locale ("de-CH", "en_US", "fr") into one of the
-    // languages this app ships. Anything else becomes the fallback language:
-    // a French Windows gets English, not a half-translated screen.
-    function normalizeLanguage(locale) {
-        if (typeof locale !== 'string') return FALLBACK_LANGUAGE;
-
-        const base = locale.toLowerCase().split(/[-_]/)[0];
-        return isSupported(base) ? base : FALLBACK_LANGUAGE;
-    }
-
     return {
-        t: t,
-        setLanguage: setLanguage,
-        getCurrentLanguage: getCurrentLanguage,
-        normalizeLanguage: normalizeLanguage,
-        isSupported: isSupported,
+        init: init,
         supportedLanguages: supportedLanguages,
         languageName: languageName,
         languagesByName: languagesByName,
-        // The parsed catalogs, for the main process to hand to the renderer.
-        catalogs: catalogs,
-        // Node only: reading a locale directory. Used by the tests.
-        loadCatalogsFrom: loadCatalogsFrom,
-        FALLBACK_LANGUAGE: FALLBACK_LANGUAGE
+        FALLBACK_LANGUAGE: FALLBACK_LANGUAGE,
+        NAMESPACE: NAMESPACE
     };
 });
