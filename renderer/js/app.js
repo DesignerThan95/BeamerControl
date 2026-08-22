@@ -37,12 +37,37 @@ window.App = window.App || {};
 
     App.class2 = class2;
 
+    // Was der Beamer zuletzt über seinen PJLink-Stand gesagt hat. Nur um
+    // dieselbe Meldung nicht bei jedem Verbindungsversuch zu wiederholen.
+    let klassenMeldung = null;
+
+    // „Class 1" kann zweierlei heißen: der Beamer hat es gesagt, oder die
+    // Frage blieb offen. Das gehört ins Protokoll, sonst liest sich ein
+    // Zeitablauf später wie eine Feststellung über das Gerät.
+    function protokolliereKlasse(erg) {
+        if (!erg || typeof erg.pjlinkClass !== 'number') return;
+
+        const kennung = erg.pjlinkClassSource + '|' + erg.pjlinkClass + '|' + (erg.pjlinkClassDetail || '');
+        if (kennung === klassenMeldung) return;
+        klassenMeldung = kennung;
+
+        if (erg.pjlinkClassSource === 'gemeldet') {
+            log.add('Der Beamer meldet PJLink Class ' + erg.pjlinkClass + '.', 'ok');
+        } else if (erg.pjlinkClassSource === 'unbeantwortet') {
+            log.add('Die Frage nach dem PJLink-Stand (CLSS) blieb unbeantwortet: ' + erg.pjlinkClassDetail + '. Es gelten vorsichtshalber die Regeln von Class 1 — ob der Beamer wirklich nur Class 1 kann, ist damit nicht gesagt.', 'fehler');
+        } else if (erg.pjlinkClassSource === 'unklar') {
+            log.add('Auf die Frage nach dem PJLink-Stand (CLSS) kam „' + erg.pjlinkClassDetail + '" zurück — damit lässt sich nichts anfangen. Es gelten vorsichtshalber die Regeln von Class 1.', 'fehler');
+        }
+    }
+
     const beamer = App.beamer.createBeamer({
         isFeatureEnabled: function (key) { return store.isClass2FeatureEnabled(key); },
         api: {
-            connect: function () {
+            connect: async function () {
                 const c = store.get().connection;
-                return api.connect({ host: c.host, port: c.port, password: c.password });
+                const erg = await api.connect({ host: c.host, port: c.port, password: c.password });
+                protokolliereKlasse(erg);
+                return erg;
             },
             getPowerState: api.getPowerState,
             getCurrentInput: api.getCurrentInput,

@@ -345,7 +345,9 @@ window.App.viewTech = (function () {
     }
 
     function zusatzBlock() {
-        const klasse = ctx.beamer.getState().pjlinkClass;
+        const zustand = ctx.beamer.getState();
+        const klasse = zustand.pjlinkClass;
+        const herkunft = zustand.pjlinkClassSource;
 
         const kinder = [el('div', { class: 'block-titel', text: 'Zusatzfunktionen des Beamers' })];
 
@@ -358,7 +360,14 @@ window.App.viewTech = (function () {
         }
 
         if (klasse !== 2) {
-            kinder.push(el('p', { class: 'hinweis', text: 'Dieser Beamer meldet nur PJLink Class 1. Lautstärke, Standbild und Wartungswerte gehören zu Class 2 und stehen an diesem Gerät nicht zur Verfügung.' }));
+            // Zwei sehr verschiedene Gründe führen hierher. Sie dürfen nicht
+            // gleich klingen: das eine ist eine Auskunft des Geräts, das
+            // andere nur eine Vorsichtsannahme der App.
+            if (herkunft === 'gemeldet') {
+                kinder.push(el('p', { class: 'hinweis', text: 'Dieser Beamer meldet PJLink Class 1. Lautstärke, Standbild und Wartungswerte gehören zu Class 2 und stehen an diesem Gerät nicht zur Verfügung. Bild ausblenden und Ton stumm gehören dagegen zu Class 1 — die bleiben auf dem Bedien-Bildschirm.' }));
+            } else {
+                kinder.push(el('p', { class: 'hinweis', text: 'Der Beamer hat auf die Frage nach seinem PJLink-Stand nicht verwertbar geantwortet — der Grund steht unten im Protokoll. Vorsichtshalber gelten hier die Regeln von Class 1. Ob dieser Beamer wirklich nur Class 1 kann, ist damit aber nicht gesagt: steht im Handbuch PJLink Class 2, lohnt ein erneuter Verbindungsversuch.' }));
+            }
             return el('div', { class: 'block' }, kinder);
         }
 

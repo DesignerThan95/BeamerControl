@@ -37,6 +37,11 @@
             // Was der Beamer beim Verbinden über seinen PJLink-Stand meldet.
             // null heißt: noch nicht gefragt.
             pjlinkClass: null,
+            // Woher diese Angabe stammt: 'gemeldet' (der Beamer hat geantwortet),
+            // 'unbeantwortet' (die Abfrage lief ins Leere) oder 'unklar' (die
+            // Antwort war weder 1 noch 2). Beide letzteren führen zu Class 1 —
+            // aber das ist dann eine Vorsichtsannahme, keine Feststellung.
+            pjlinkClassSource: null,
             freeze: false,
             pending: null,
             commandError: null
@@ -126,12 +131,16 @@
                 // Die Zustandsmaschine baut die Verbindung selbst auf. Solange sie
                 // nicht steht, wird vor jeder Abfrage ein neuer Versuch unternommen.
                 let klasse = state.pjlinkClass;
+                let klasseHer = state.pjlinkClassSource;
                 if (state.link !== 'online') {
                     const erg = await api.connect();
                     // Beim Verbinden sagt der Beamer, welchen PJLink-Stand er
                     // beherrscht. Danach richtet sich, was die Technik-Seite
                     // überhaupt zum Freischalten anbietet.
-                    if (erg && typeof erg.pjlinkClass === 'number') klasse = erg.pjlinkClass;
+                    if (erg && typeof erg.pjlinkClass === 'number') {
+                        klasse = erg.pjlinkClass;
+                        klasseHer = erg.pjlinkClassSource || null;
+                    }
                 }
                 const neu = await abfragen();
                 fehlerInFolge = 0;
@@ -144,7 +153,8 @@
                     sourceName: neu.sourceName,
                     mute: neu.mute,
                     freeze: neu.freeze,
-                    pjlinkClass: klasse
+                    pjlinkClass: klasse,
+                    pjlinkClassSource: klasseHer
                 };
 
                 if (state.pending) {

@@ -458,3 +458,33 @@ test('scheitert die Standbild-Abfrage, läuft der Rest weiter', async () => {
     assert.strictEqual(b.getState().power, 'on');
     assert.strictEqual(b.getState().sourceCode, '31');
 });
+
+// ---------- Woher die PJLink-Klasse stammt ----------
+
+// Entscheidend für die Technik-Seite: „der Beamer sagt Class 1" und „die
+// Abfrage blieb unbeantwortet" sehen im Ergebnis gleich aus (beides führt zu
+// Class 1), bedeuten aber Verschiedenes. Ohne diese Unterscheidung liest sich
+// eine fehlgeschlagene Abfrage wie eine Feststellung über das Gerät.
+test('eine beantwortete Klassenabfrage wird als gemeldet gekennzeichnet', async () => {
+    const { uhr, api, b } = bauen({ power: 1, pjlinkClass: 2 });
+    api.connect = async function () { return { success: true, pjlinkClass: 2, pjlinkClassSource: 'gemeldet' }; };
+    b.start();
+    await uhr.advance(1);
+    assert.strictEqual(b.getState().pjlinkClass, 2);
+    assert.strictEqual(b.getState().pjlinkClassSource, 'gemeldet');
+});
+
+test('eine unbeantwortete Klassenabfrage wird als solche gekennzeichnet', async () => {
+    const { uhr, api, b } = bauen({ power: 1 });
+    api.connect = async function () { return { success: true, pjlinkClass: 1, pjlinkClassSource: 'unbeantwortet' }; };
+    b.start();
+    await uhr.advance(1);
+    assert.strictEqual(b.getState().pjlinkClass, 1, 'vorsichtshalber gilt Class 1');
+    assert.strictEqual(b.getState().pjlinkClassSource, 'unbeantwortet', 'aber das ist keine Aussage über das Gerät');
+});
+
+test('vor der ersten Verbindung ist die Herkunft unbekannt', () => {
+    const { b } = bauen({ power: 1 });
+    assert.strictEqual(b.getState().pjlinkClass, null);
+    assert.strictEqual(b.getState().pjlinkClassSource, null);
+});

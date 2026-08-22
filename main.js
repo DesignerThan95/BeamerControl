@@ -86,7 +86,15 @@ ipcMain.handle('connect', async (event, { host, port, password }) => {
         // Test connection
         await promisifyPJLinkCall(beamer.getPowerState.bind(beamer));
 
-        return { success: true, message: 'Verbunden', pjlinkClass: await ermittleKlasse() };
+        const klasse = await ermittleKlasse();
+
+        return {
+            success: true,
+            message: 'Verbunden',
+            pjlinkClass: klasse.pjlinkClass,
+            pjlinkClassSource: klasse.pjlinkClassSource,
+            pjlinkClassDetail: klasse.pjlinkClassDetail
+        };
     } catch (error) {
         beamer = null;
         throw new Error(error.message || 'Verbindung fehlgeschlagen');
@@ -96,16 +104,38 @@ ipcMain.handle('connect', async (event, { host, port, password }) => {
 // Welchen PJLink-Stand meldet der Beamer? Class 2 kennt die Zusatzbefehle
 // (Lautstärke, Standbild, Wartungswerte), Class 1 nicht. Die Abfrage selbst
 // ist ein Class-1-Befehl und funktioniert deshalb überall.
-// Sie darf die Verbindung nicht scheitern lassen: antwortet ein älteres Gerät
-// darauf gar nicht, gilt Class 1 — dann bleiben die Zusatzfunktionen einfach aus.
+//
+// Die Abfrage darf die Verbindung nicht scheitern lassen — im Zweifel gilt
+// Class 1, dann bleiben die Zusatzfunktionen eben aus. Entscheidend ist aber,
+// dass dabei festgehalten wird, WARUM Class 1 gilt: „der Beamer hat Class 1
+// geantwortet" und „die Abfrage blieb unbeantwortet" führen zum selben Wert,
+// bedeuten aber Verschiedenes. Ohne diese Unterscheidung liest sich ein
+// Zeitablauf wie eine Feststellung über das Gerät.
 async function ermittleKlasse() {
+    let roh;
+
     try {
-        const roh = await promisifyPJLinkCall(beamer.getClass.bind(beamer));
-        const klasse = parseInt(roh, 10);
-        return klasse === 2 ? 2 : 1;
+        roh = await promisifyPJLinkCall(beamer.getClass.bind(beamer));
     } catch (error) {
-        return 1;
+        return {
+            pjlinkClass: 1,
+            pjlinkClassSource: 'unbeantwortet',
+            pjlinkClassDetail: error.message || 'kein Grund genannt'
+        };
     }
+
+    const klasse = parseInt(roh, 10);
+
+    if (klasse === 1 || klasse === 2) {
+        return { pjlinkClass: klasse, pjlinkClassSource: 'gemeldet', pjlinkClassDetail: String(roh) };
+    }
+
+    // Geantwortet hat er, aber mit etwas anderem als 1 oder 2.
+    return {
+        pjlinkClass: 1,
+        pjlinkClassSource: 'unklar',
+        pjlinkClassDetail: roh === undefined ? 'leere Antwort' : String(roh)
+    };
 }
 
 ipcMain.handle('disconnect', async () => {
