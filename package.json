@@ -33,6 +33,7 @@
       "main.js",
       "preload.js",
       "renderer/**/*",
+      "locales/**/*",
       "index.js",
       "lib/**/*",
       "package.json",

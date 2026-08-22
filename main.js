@@ -485,6 +485,19 @@ nativeTheme.on('updated', () => {
     }
 });
 
+// ============ TRANSLATIONS ============
+
+// The texts from locales/*.json, read once when this module loads. The
+// renderer cannot read them itself — no fs there, and fetch() cannot reach a
+// file:// path — and neither can the preload script, which runs sandboxed.
+// So it is handed out from here.
+//
+// Synchronous by design: the preload script asks before the first paint, so
+// that no screen can render before it has its texts. One small object, once.
+ipcMain.on('get-translations', (event) => {
+    event.returnValue = i18n.catalogs();
+});
+
 // ============ LANGUAGE OF THE OPERATING SYSTEM ============
 
 // Same route as the colour scheme: the operating system is asked, the renderer

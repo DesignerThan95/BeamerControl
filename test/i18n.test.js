@@ -1,20 +1,140 @@
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const i18n = require('../renderer/js/i18n');
-const de = require('../renderer/js/i18n/de.js');
-const en = require('../renderer/js/i18n/en.js');
+
+const LOCALES = path.join(__dirname, '..', 'locales');
+// Whatever is in the folder — a new locales/xx.json must not force a change
+// to this file, that is the whole promise made in locales/README.md.
+const SHIPPED = fs.readdirSync(LOCALES)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => name.slice(0, -'.json'.length))
+    .sort();
+const de = JSON.parse(fs.readFileSync(path.join(LOCALES, 'de.json'), 'utf-8'));
+const en = JSON.parse(fs.readFileSync(path.join(LOCALES, 'en.json'), 'utf-8'));
+
+// Builds a throwaway locales directory from {name: contents} and cleans it up.
+function withLocaleFiles(files, fn) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'locales-'));
+    Object.keys(files).forEach(function (name) {
+        fs.writeFileSync(path.join(dir, name), files[name], 'utf-8');
+    });
+
+    // The loader reports broken files on the console. That is wanted in the
+    // app and only noise here, so it is captured and handed to the test.
+    const realError = console.error;
+    const reported = [];
+    console.error = function (message) { reported.push(String(message)); };
+
+    try {
+        return fn(dir, reported);
+    } finally {
+        console.error = realError;
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+// Runs `fn` with `translations` swapped for something else, then puts the real
+// catalogs back — the helper reads them from there, and the other tests in
+// this file depend on the real ones.
+function withCatalogs(replacement, fn) {
+    const real = globalThis.translations;
+    globalThis.translations = replacement;
+    try {
+        return fn();
+    } finally {
+        globalThis.translations = real;
+        i18n.setLanguage(i18n.FALLBACK_LANGUAGE);
+    }
+}
 
 // The helper starts every test from the same place: requiring it once per file
 // means the language survives between tests otherwise.
 test.beforeEach(() => { i18n.setLanguage(i18n.FALLBACK_LANGUAGE); });
 
+// ---------- Reading the locale files ----------
+
+// Every file in the folder has to parse — that is what stops a broken
+// translation from reaching a release.
+test('every shipped locale file is valid JSON', () => {
+    const loaded = i18n.loadCatalogsFrom(LOCALES);
+    assert.deepStrictEqual(Object.keys(loaded).sort(), SHIPPED, 'none of them was skipped');
+});
+
+test('the shipped locale files are read off disk', () => {
+    const loaded = i18n.loadCatalogsFrom(LOCALES);
+    assert.strictEqual(loaded.de.operate.powerOn, 'Beamer einschalten');
+    assert.strictEqual(loaded.en.operate.powerOn, 'Turn projector on');
+});
+
+test('the file name is the language code', () => {
+    withLocaleFiles({ 'pt.json': JSON.stringify({ languageName: 'Português' }) }, (dir) => {
+        const loaded = i18n.loadCatalogsFrom(dir);
+        assert.deepStrictEqual(Object.keys(loaded), ['pt']);
+    });
+});
+
+// ---------- A broken locale file must not take the app down ----------
+
+// The point of the whole exercise: a contributor's bad pull request, or a
+// non-developer editing a file by hand, may cost that one language — never the
+// app's ability to start.
+test('a malformed locale file is skipped and reported, the rest loads', () => {
+    withLocaleFiles({
+        'en.json': JSON.stringify(en),
+        'de.json': '{ "common": { "cancel": "Abbrechen"'   // truncated on purpose
+    }, (dir, reported) => {
+        const loaded = i18n.loadCatalogsFrom(dir);
+
+        assert.deepStrictEqual(Object.keys(loaded), ['en'], 'the broken language is dropped, the good one stays');
+        assert.strictEqual(reported.length, 1, 'and the reason is reported');
+        assert.match(reported[0], /de\.json/, 'naming the file that is broken');
+    });
+});
+
+test('a language whose file is broken falls back to English on screen', () => {
+    withLocaleFiles({
+        'en.json': JSON.stringify(en),
+        'de.json': 'this is not JSON at all'
+    }, (dir) => {
+        withCatalogs(i18n.loadCatalogsFrom(dir), () => {
+            assert.strictEqual(i18n.setLanguage('de'), 'en', 'German cannot be set, so English applies');
+            assert.strictEqual(i18n.t('operate.powerOn'), 'Turn projector on', 'and real text is shown, not keys');
+            assert.strictEqual(i18n.normalizeLanguage('de-CH'), 'en', 'a German operating system gets English too');
+        });
+    });
+});
+
+// Even with nothing readable at all the helper has to answer, so that whatever
+// calls it keeps running. Keys on screen are a broken UI — not a dead app.
+test('with no locale files at all the app still gets answers', () => {
+    withLocaleFiles({}, (dir) => {
+        withCatalogs(i18n.loadCatalogsFrom(dir), () => {
+            assert.deepStrictEqual(i18n.supportedLanguages(), []);
+            assert.strictEqual(i18n.setLanguage('de'), 'en');
+            assert.strictEqual(i18n.t('operate.powerOn'), 'operate.powerOn');
+            assert.strictEqual(i18n.languagesByName().length, 0);
+        });
+    });
+});
+
+test('a missing locales directory is reported, not thrown', () => {
+    withLocaleFiles({}, (dir, reported) => {
+        const loaded = i18n.loadCatalogsFrom(path.join(dir, 'does-not-exist'));
+        assert.deepStrictEqual(loaded, {});
+        assert.strictEqual(reported.length, 1);
+    });
+});
+
 // ---------- Which languages are on board ----------
 
 test('the shipped languages are found', () => {
-    assert.deepStrictEqual(i18n.supportedLanguages(), ['de', 'en']);
+    assert.deepStrictEqual(i18n.supportedLanguages(), SHIPPED);
     assert.strictEqual(i18n.isSupported('de'), true);
     assert.strictEqual(i18n.isSupported('en'), true);
-    assert.strictEqual(i18n.isSupported('fr'), false);
+    assert.strictEqual(i18n.isSupported('zz'), false);
 });
 
 // ---------- Names of the languages ----------
@@ -38,19 +158,24 @@ test('a language without a name of its own falls back to its code', () => {
 });
 
 test('the languages come sorted by the name they call themselves', () => {
-    assert.deepStrictEqual(i18n.languagesByName(), ['de', 'en']);
+    const expected = SHIPPED.slice().sort(function (a, b) {
+        return i18n.languageName(a).localeCompare(i18n.languageName(b));
+    });
+    assert.deepStrictEqual(i18n.languagesByName(), expected);
+    assert.ok(i18n.languagesByName().indexOf('de') < i18n.languagesByName().indexOf('en'),
+        'Deutsch before English');
 });
 
 // Sorting by code and sorting by name are not the same thing. A language whose
 // code sorts last but whose name sorts first has to come first on screen.
 test('sorting follows the name, not the code', () => {
-    globalThis.translations.zz = { languageName: 'Alemannisch' };
-    try {
-        assert.deepStrictEqual(i18n.languagesByName(), ['zz', 'de', 'en']);
-        assert.deepStrictEqual(i18n.supportedLanguages(), ['de', 'en', 'zz'], 'by code it sorts last');
-    } finally {
-        delete globalThis.translations.zz;
-    }
+    withCatalogs({
+        zz: { languageName: 'Alemannisch' },
+        aa: { languageName: 'Zulu' }
+    }, () => {
+        assert.deepStrictEqual(i18n.languagesByName(), ['zz', 'aa'], 'by name');
+        assert.deepStrictEqual(i18n.supportedLanguages(), ['aa', 'zz'], 'by code it is the other way round');
+    });
 });
 
 // ---------- Looking texts up ----------
@@ -161,15 +286,26 @@ test('a missing locale falls back to English', () => {
 // ---------- The catalogs themselves ----------
 
 // The one check that catches drift: a key added to one language and forgotten
-// in the other shows up here instead of on someone's screen.
-test('German and English carry exactly the same keys', () => {
+// in another shows up here instead of on someone's screen. Measured against
+// en.json, because that is the fallback every lookup ends up in.
+test('every language carries exactly the keys of the fallback language', () => {
     const flatten = (node, prefix) => {
         return Object.keys(node).reduce((keys, name) => {
-            const path = prefix ? prefix + '.' + name : name;
+            const keyPath = prefix ? prefix + '.' + name : name;
             const value = node[name];
-            return keys.concat(typeof value === 'string' ? [path] : flatten(value, path));
+            return keys.concat(typeof value === 'string' ? [keyPath] : flatten(value, keyPath));
         }, []);
     };
 
-    assert.deepStrictEqual(flatten(de, '').sort(), flatten(en, '').sort());
+    const expected = flatten(en, '').sort();
+    const loaded = i18n.loadCatalogsFrom(LOCALES);
+
+    SHIPPED.forEach(function (code) {
+        assert.deepStrictEqual(flatten(loaded[code], '').sort(), expected, code + '.json differs from en.json');
+    });
+});
+
+test('German really is a full translation, not a stub', () => {
+    assert.strictEqual(Object.keys(de).length, Object.keys(en).length);
+    assert.notStrictEqual(de.operate.powerOn, en.operate.powerOn);
 });

@@ -1,10 +1,15 @@
 // Translation helper. Knows no DOM and no projector, so it runs in the renderer
 // and in Node (for the tests) alike.
 //
-// Catalogs are not loaded from here. Each language file registers itself on the
-// shared `translations` namespace — in the browser through its own <script> tag,
-// in Node by being required. Adding a language therefore means adding one file
-// (plus its <script> tag in index.html); nothing in this file has to change.
+// The texts live in locales/*.json — plain data, so that translating this app
+// never means editing JavaScript. Adding a language means adding one file;
+// nothing in here has to change.
+//
+// The JSON is never read by the renderer itself: under file:// with context
+// isolation, fetch() cannot reach a local file. Node reads it — the main
+// process and the tests do so directly, and the renderer gets the parsed
+// catalogs over the context bridge. The preload script cannot read them
+// either: it runs sandboxed, where require() has no fs.
 (function (root, factory) {
     const api = factory(root);
     if (typeof module === 'object' && module.exports) {
@@ -21,20 +26,48 @@
 
     let currentLanguage = FALLBACK_LANGUAGE;
 
-    // Under Node there are no <script> tags, so the catalogs next to this file
-    // are pulled in here. Reading the directory rather than listing the files
-    // keeps the "one more file is a whole new language" promise on this side too.
-    if (typeof module === 'object' && module.exports) {
+    // Reads every locales/*.json in a directory. The file name is the language
+    // code: de.json becomes "de".
+    //
+    // Node only. Nothing in here throws: a locale file that is missing or
+    // malformed — a contributor's bad pull request, someone editing by hand —
+    // costs that one language and nothing else. The app still starts, and
+    // whoever picked the broken language lands on English through
+    // setLanguage(), which only accepts a language that actually loaded.
+    function loadCatalogsFrom(directory) {
+        const fs = require('fs');
+        const path = require('path');
+        const loaded = {};
+
+        let files;
         try {
-            const fs = require('fs');
-            const path = require('path');
-            fs.readdirSync(__dirname)
-                .filter(function (name) { return name.endsWith('.js') && name !== 'index.js'; })
-                .forEach(function (name) { require(path.join(__dirname, name)); });
+            files = fs.readdirSync(directory).filter(function (name) { return name.endsWith('.json'); });
         } catch (error) {
-            // No catalogs means every lookup returns its own key. That is a
-            // visibly broken UI, not a crash — and never the case in the browser.
+            console.error('[i18n] cannot read the locales directory ' + directory + ': ' + error.message);
+            return loaded;
         }
+
+        files.forEach(function (name) {
+            const code = name.slice(0, -'.json'.length);
+            try {
+                loaded[code] = JSON.parse(fs.readFileSync(path.join(directory, name), 'utf-8'));
+            } catch (error) {
+                console.error('[i18n] skipping locales/' + name + ': ' + error.message);
+            }
+        });
+
+        return loaded;
+    }
+
+    // Under Node — the tests and the main process — the catalogs come straight
+    // off disk. In the renderer they are already sitting on `translations`,
+    // put there by the context bridge.
+    if (typeof module === 'object' && module.exports) {
+        const path = require('path');
+        root.translations = Object.assign(
+            root.translations || {},
+            loadCatalogsFrom(path.join(__dirname, '..', '..', '..', 'locales'))
+        );
     }
 
     function catalogs() {
@@ -134,6 +167,10 @@
         supportedLanguages: supportedLanguages,
         languageName: languageName,
         languagesByName: languagesByName,
+        // The parsed catalogs, for the main process to hand to the renderer.
+        catalogs: catalogs,
+        // Node only: reading a locale directory. Used by the tests.
+        loadCatalogsFrom: loadCatalogsFrom,
         FALLBACK_LANGUAGE: FALLBACK_LANGUAGE
     };
 });

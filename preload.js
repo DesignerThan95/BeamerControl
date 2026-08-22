@@ -1,6 +1,27 @@
 // preload.js - secure bridge between renderer and main process
 const { contextBridge, ipcRenderer } = require('electron');
 
+// The translations reach the renderer from here. The renderer cannot read them
+// itself: under file:// with context isolation fetch() cannot reach a local
+// file, and there is no fs in the renderer.
+//
+// They are not read in this file either. This preload runs sandboxed, where
+// require() only serves a handful of Electron modules — no fs, no local files.
+// So the main process reads locales/*.json (it needs them anyway, to match the
+// operating system's locale) and hands them over here.
+//
+// sendSync on purpose: this has to be done before the first paint, and going
+// asynchronous would mean every screen could render before it had its texts.
+// It blocks this preload once, for one small object, before any script runs.
+//
+// Handed to the renderer as plain data rather than as a function on pjlinkAPI:
+// the context bridge copies its arguments on every call, so a getter would
+// clone the whole catalog on every single lookup.
+//
+// A locale file that is missing or malformed was already dropped by the
+// loader, with the reason on the console. Whatever loaded, ships.
+contextBridge.exposeInMainWorld('translations', ipcRenderer.sendSync('get-translations'));
+
 contextBridge.exposeInMainWorld('pjlinkAPI', {
     // Connection
     connect: (config) => ipcRenderer.invoke('connect', config),
