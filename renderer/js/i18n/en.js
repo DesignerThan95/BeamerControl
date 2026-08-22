@@ -1,0 +1,248 @@
+// English user interface texts. Registers itself on the shared `translations`
+// namespace; see i18n/index.js for how it is picked up.
+//
+// This is the fallback language: every key a screen asks for must exist here,
+// otherwise the key itself ends up on screen.
+(function (root, factory) {
+    const catalog = factory();
+
+    root.translations = root.translations || {};
+    root.translations.en = catalog;
+
+    if (typeof module === 'object' && module.exports) {
+        module.exports = catalog;
+    }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+    return {
+
+        common: {
+            appTitle: 'Projector Control',
+            toggleThemeTitle: 'Switch between light and dark',
+            techTitle: 'Technical settings',
+            yes: 'Yes',
+            cancel: 'Cancel',
+            next: 'Continue',
+            ipAddress: 'IP address',
+            port: 'Port',
+            password: 'Password',
+            unknown: 'unknown',
+            pjlinkDevice: 'PJLink device',
+            hostPlaceholder: 'e.g. 192.168.1.100',
+            passwordPlaceholder: 'usually empty',
+            connecting: 'Connecting …',
+            connectionFailed: 'No connection: {message}',
+            scanRunning: 'Searching …',
+            scanProgress: '{checked} of {total} addresses checked · {found} found',
+            searchAgain: 'Search again',
+            enterIpManually: 'Enter the IP address yourself'
+        },
+
+        operate: {
+            // The raw PJLink names (RGB, DIGITAL, …) mean nothing to anyone.
+            connector: {
+                vga: 'VGA',
+                video: 'Video',
+                hdmi: 'HDMI',
+                usb: 'USB',
+                network: 'Network',
+                other: 'Input'
+            },
+            connectorName: '{type} {channel}',
+
+            // The PJLink library hands us raw English wording. None of it
+            // belongs on the operating screen.
+            errors: {
+                undefinedCommand: 'The projector does not know this command.',
+                outOfParameter: 'The projector did not accept this setting.',
+                unavailableTime: 'Not possible right now — the projector is busy, for instance warming up or cooling down.',
+                projectorFailure: 'The projector reports a fault with itself.',
+                authorizationFailed: 'The password is wrong. You can change it behind the gear icon.',
+                replyMismatch: 'The projector gave an unexpected answer.',
+                notConnected: 'No connection to the projector at the moment.',
+                connectionTimeout: 'The projector did not answer in time.',
+                notConfirmed: 'The projector did not confirm the command. Take a quick look at the screen — often it worked anyway.',
+                commandFailed: 'The command failed.',
+                generic: 'The projector did not carry out the command.'
+            },
+
+            commandFailedTitle: 'That did not work',
+            gotIt: 'Got it',
+
+            running: 'Projector is on',
+            hideVideo: 'Hide picture',
+            muteAudio: 'Mute sound',
+            freeze: 'Freeze picture',
+
+            volumeHeading: 'Volume on the projector',
+            audio: 'Sound',
+            microphone: 'Microphone',
+            volumeDown: '− quieter',
+            volumeUp: '+ louder',
+            volumeDownTitle: 'Turn {label} down',
+            volumeUpTitle: 'Turn {label} up',
+            volumeHint: 'The projector does not report a volume level — all you can do here is step it up and down.',
+
+            sourceHeading: 'What should be shown?',
+            noSources: 'No picture source has been set up yet. You can catch up on that behind the gear icon in the top right.',
+            switching: ' switching over …',
+            notConfigured: 'not set up',
+
+            powerOff: 'Turn projector off',
+            powerOffConfirmTitle: 'Turn the projector off?',
+            powerOffConfirmText: 'After being switched off, the projector needs a few minutes before it can be switched on again.',
+            powerOffConfirmYes: 'Yes, turn it off',
+
+            connectingTitle: 'One moment …',
+            connectingText: 'The app is contacting the projector.',
+            offlineTitle: 'No contact with the projector',
+            offlineText: 'The app keeps trying. If nothing changes, this usually helps: switch the projector on or check the network cable. Everything else is behind the gear icon in the top right.',
+            retry: 'Try again now',
+
+            poweringOnTitle: 'The projector is being switched on …',
+            poweringOnText: 'Please be patient — starting up usually takes half a minute to a minute.',
+            poweringOffTitle: 'The projector is being switched off …',
+            poweringOffText: 'The lamp will cool down afterwards.',
+            warmingTitle: 'The projector is warming up …',
+            warmingText: 'This usually takes half a minute to a minute.',
+            coolingTitle: 'The projector is cooling down …',
+            coolingText: 'While the lamp cools down, it cannot be switched on again.',
+
+            offTitle: 'The projector is off',
+            powerOn: 'Turn projector on',
+
+            videoMutedTitle: 'The screen is blank right now',
+            videoMutedText: 'The projector is still running — only the picture is hidden.',
+            showVideo: 'Show the picture again'
+        },
+
+        tech: {
+            backToOperate: '← Back to the controls',
+
+            connectionHeading: 'Connection to the projector',
+            passwordLabel: 'Password (if one is set on the projector)',
+            testConnection: 'Test connection',
+            connectedWith: 'Connected — {manufacturer} {model}',
+            scanNetwork: 'Search the network for projectors',
+            standbyHint: 'The search only finds projectors that are currently answering on their network port. A projector that is switched off usually shuts down its network card as well. For it to stay reachable in standby — and to let you switch it on from here — the projector menu must have "Network standby" (sometimes "LAN in standby" or "Always On") enabled under Network.',
+            useDevice: '{name} · use this one',
+
+            sourcesHeading: 'Picture sources',
+            sourceInputColumn: 'Input on the projector',
+            sourceLabelColumn: 'Name shown in the controls',
+            sourceVisibleColumn: 'Show',
+            noInputsYet: 'No inputs known yet. The button below asks the projector.',
+            reloadInputs: 'Read the inputs from the projector again',
+
+            class2Heading: 'Extra features of the projector',
+            class2Unknown: 'Not known yet — the app asks for this when connecting. As soon as the connection is up, what this projector can do on top will appear here.',
+            class1Reported: 'This projector reports PJLink Class 1. Volume, freeze and maintenance readings belong to Class 2 and are not available on this device. Hiding the picture and muting the sound belong to Class 1 — those stay on the operating screen.',
+            class1Assumed: 'The projector gave no usable answer when asked which PJLink level it supports — the reason is in the activity log below. As a precaution, the Class 1 rules apply here. That does not mean this projector is really limited to Class 1: if the manual says PJLink Class 2, another connection attempt is worth trying.',
+            class2Available: 'This projector reports PJLink Class 2. PJLink does not reveal which of those features it actually supports — that has to be tried out. Each feature can be switched on individually here. If the projector answers on the first attempt that it does not know the command, the feature switches itself off again.',
+
+            features: {
+                volume: {
+                    title: 'Volume',
+                    description: 'Buttons for louder and quieter on the operating screen. PJLink only knows steps up and down here — the projector does not hand out a current level, so no slider can be shown.'
+                },
+                freeze: {
+                    title: 'Freeze picture',
+                    description: 'Holds the picture still. Unlike "Hide picture", the screen stays bright — useful while something is being prepared on the computer.'
+                },
+                deviceDetails: {
+                    title: 'Serial number and software version',
+                    description: 'Shows both here on this page. Helps when contacting the manufacturer.'
+                },
+                inputNames: {
+                    title: 'Input names from the projector',
+                    description: 'Takes the input names stored in the projector as a suggestion for the picture sources above.'
+                },
+                resolution: {
+                    title: 'Resolution',
+                    description: 'Shows which picture is coming in and which resolution the projector recommends.'
+                },
+                maintenance: {
+                    title: 'Maintenance',
+                    description: 'Operating hours of the filter and the order numbers for the replacement lamp and filter.'
+                }
+            },
+
+            fetchValues: 'Fetch readings from the projector',
+            querying: 'Asking …',
+            applyInputNames: 'Take the input names from the projector',
+            applyInputNamesConfirmTitle: 'Take the names from the projector?',
+            applyInputNamesConfirmText: 'The picture source names given here will be replaced by the ones stored in the projector.',
+            applyInputNamesConfirmYes: 'Yes, take them over',
+
+            serialNumber: 'Serial number',
+            softwareVersion: 'Software version',
+            currentResolution: 'Incoming picture',
+            recommendedResolution: 'Recommended by the projector',
+            noSignal: 'no signal',
+            signalNotRecognized: 'signal not recognised',
+            filterHours: 'Filter in service for',
+            hours: '{count} hours',
+            replacementLamp: 'Replacement lamp',
+            replacementFilter: 'Replacement filter',
+            noneSpecified: 'none given',
+
+            appearanceHeading: 'Appearance',
+            themeSystem: 'Same as the operating system',
+            themeLight: 'Light',
+            themeDark: 'Dark',
+            highContrast: ' High contrast (larger text, stronger borders)',
+
+            languageHeading: 'Language',
+            languageSystem: 'Same as the operating system',
+
+            logHeading: 'Activity log',
+            logEmpty: 'Nothing has happened yet.',
+            copyLog: 'Copy activity log',
+            restartSetup: 'Start setup over',
+            restartSetupConfirmTitle: 'Start setup over?',
+            restartSetupConfirmText: 'The saved connection and the names of the picture sources will be lost.',
+            restartSetupConfirmYes: 'Yes, set up again'
+        },
+
+        setup: {
+            wizardLabel: 'Setup',
+
+            whereTitle: 'Where is the projector?',
+            whereText: 'The app searches the network for projectors. For that, the projector must be switched on or in network standby.',
+            searchProjectors: 'Search for projectors',
+            enterIpInstead: 'Enter the IP address yourself instead',
+            scanDuration: 'This takes up to half a minute.',
+
+            noneFoundTitle: 'No projector found',
+            noneFoundIntro: 'That usually has one of these reasons:',
+            noneFoundReasonOff: 'The projector is completely off. A switched-off projector usually shuts down its network card as well and is then invisible to any program. Switch it on with the remote control for the setup.',
+            noneFoundReasonStandby: 'For it to stay reachable while switched off, the "Network standby" setting (sometimes "LAN in standby" or "Always On") must be enabled under Network in the projector menu.',
+            noneFoundReasonPjlink: 'PJLink is not enabled in the projector menu.',
+            noneFoundReasonNetwork: 'The projector and this computer are on different networks.',
+
+            foundOne: 'One device found',
+            foundMany: '{count} devices found',
+            chooseDevice: 'Choose the projector you want to control.',
+            select: 'select',
+
+            deviceFound: '{name} found',
+            enterIpTitle: 'Enter the IP address',
+            passwordHint: 'If a PJLink password is set on the projector, enter it here — otherwise just continue.',
+            ipRequired: 'Please enter an IP address first.',
+            backToSearch: 'Back to the search',
+
+            noInputsTitle: 'No inputs reported',
+            noInputsText: 'The projector did not reveal its connectors. You can catch up on that later on the technical page — the controls work without it, just without a choice of picture source.',
+            nameInputsTitle: 'What do you call these connectors?',
+            nameInputsText: 'The projector reports these inputs. Give them names everyone understands — and untick everything you never use.',
+            inputColumn: 'Input',
+            nameColumn: 'Name',
+            showColumn: 'Show',
+
+            doneTitle: 'All set',
+            doneText: 'From now on the controls show {sources} and the on/off switch. Everything technical lives behind the gear icon in the top right.',
+            doneSourceCount: '{count} picture source(s)',
+            doneNoSources: 'no picture sources',
+            toOperate: 'Go to the controls'
+        }
+    };
+});

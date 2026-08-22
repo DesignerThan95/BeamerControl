@@ -1,0 +1,248 @@
+// German user interface texts. Registers itself on the shared `translations`
+// namespace; see i18n/index.js for how it is picked up.
+//
+// The activity log is deliberately not part of this file: it is written for
+// whoever maintains the installation and stays English in the source.
+(function (root, factory) {
+    const catalog = factory();
+
+    root.translations = root.translations || {};
+    root.translations.de = catalog;
+
+    if (typeof module === 'object' && module.exports) {
+        module.exports = catalog;
+    }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+    return {
+
+        common: {
+            appTitle: 'Beamer Steuerung',
+            toggleThemeTitle: 'Hell / Dunkel umschalten',
+            techTitle: 'Technik',
+            yes: 'Ja',
+            cancel: 'Abbrechen',
+            next: 'Weiter',
+            ipAddress: 'IP-Adresse',
+            port: 'Port',
+            password: 'Passwort',
+            unknown: 'unbekannt',
+            pjlinkDevice: 'PJLink-Gerät',
+            hostPlaceholder: 'z. B. 192.168.1.100',
+            passwordPlaceholder: 'meistens leer',
+            connecting: 'Verbinde …',
+            connectionFailed: 'Keine Verbindung: {message}',
+            scanRunning: 'Suche läuft …',
+            scanProgress: '{checked} von {total} Adressen geprüft · {found} gefunden',
+            searchAgain: 'Noch einmal suchen',
+            enterIpManually: 'IP-Adresse selbst eingeben'
+        },
+
+        operate: {
+            // Die PJLink-Rohnamen (RGB, DIGITAL, …) sagen niemandem etwas.
+            connector: {
+                vga: 'VGA',
+                video: 'Video',
+                hdmi: 'HDMI',
+                usb: 'USB',
+                network: 'Netzwerk',
+                other: 'Eingang'
+            },
+            connectorName: '{type} {channel}',
+
+            // Die PJLink-Bibliothek liefert englische Rohtexte. Auf dem
+            // Bedien-Bildschirm darf nichts davon stehen.
+            errors: {
+                undefinedCommand: 'Der Beamer kennt diesen Befehl nicht.',
+                outOfParameter: 'Der Beamer hat diese Einstellung nicht angenommen.',
+                unavailableTime: 'Gerade nicht möglich — der Beamer ist beschäftigt, etwa beim Auf- oder Abwärmen.',
+                projectorFailure: 'Der Beamer meldet eine Störung an sich selbst.',
+                authorizationFailed: 'Das Passwort stimmt nicht. Es lässt sich hinter dem Zahnrad ändern.',
+                replyMismatch: 'Der Beamer hat unerwartet geantwortet.',
+                notConnected: 'Gerade keine Verbindung zum Beamer.',
+                connectionTimeout: 'Der Beamer hat nicht rechtzeitig geantwortet.',
+                notConfirmed: 'Der Beamer hat den Befehl nicht bestätigt. Schau kurz zur Leinwand — oft hat es trotzdem geklappt.',
+                commandFailed: 'Der Befehl ist fehlgeschlagen.',
+                generic: 'Der Beamer hat den Befehl nicht ausgeführt.'
+            },
+
+            commandFailedTitle: 'Das hat nicht geklappt',
+            gotIt: 'Verstanden',
+
+            running: 'Beamer läuft',
+            hideVideo: 'Bild ausblenden',
+            muteAudio: 'Ton stumm',
+            freeze: 'Standbild',
+
+            volumeHeading: 'Lautstärke am Beamer',
+            audio: 'Ton',
+            microphone: 'Mikrofon',
+            volumeDown: '− leiser',
+            volumeUp: '+ lauter',
+            volumeDownTitle: '{label} leiser',
+            volumeUpTitle: '{label} lauter',
+            volumeHint: 'Der Beamer meldet keinen Lautstärkewert zurück — hier lässt sich nur schrittweise lauter und leiser stellen.',
+
+            sourceHeading: 'Was soll gezeigt werden?',
+            noSources: 'Es ist noch keine Bildquelle eingerichtet. Über das Zahnrad oben rechts lässt sich das nachholen.',
+            switching: ' wird umgeschaltet …',
+            notConfigured: 'nicht eingerichtet',
+
+            powerOff: 'Beamer ausschalten',
+            powerOffConfirmTitle: 'Beamer ausschalten?',
+            powerOffConfirmText: 'Nach dem Ausschalten braucht der Beamer einige Minuten, bevor er sich wieder einschalten lässt.',
+            powerOffConfirmYes: 'Ja, ausschalten',
+
+            connectingTitle: 'Einen Moment …',
+            connectingText: 'Die App nimmt Kontakt zum Beamer auf.',
+            offlineTitle: 'Kein Kontakt zum Beamer',
+            offlineText: 'Die App versucht es weiter. Bleibt es dabei, hilft meist: Beamer einschalten oder Netzwerkkabel prüfen. Alles Weitere steht hinter dem Zahnrad oben rechts.',
+            retry: 'Jetzt noch einmal versuchen',
+
+            poweringOnTitle: 'Der Beamer wird eingeschaltet …',
+            poweringOnText: 'Bitte einen Moment Geduld — das Hochfahren dauert meist eine halbe bis eine Minute.',
+            poweringOffTitle: 'Der Beamer wird ausgeschaltet …',
+            poweringOffText: 'Danach kühlt die Lampe ab.',
+            warmingTitle: 'Der Beamer wärmt sich auf …',
+            warmingText: 'Das dauert meist eine halbe bis eine Minute.',
+            coolingTitle: 'Der Beamer kühlt ab …',
+            coolingText: 'Solange die Lampe abkühlt, lässt er sich nicht wieder einschalten.',
+
+            offTitle: 'Der Beamer ist aus',
+            powerOn: 'Beamer einschalten',
+
+            videoMutedTitle: 'Die Leinwand ist gerade schwarz',
+            videoMutedText: 'Der Beamer läuft weiter — das Bild ist nur ausgeblendet.',
+            showVideo: 'Bild wieder zeigen'
+        },
+
+        tech: {
+            backToOperate: '← Zurück zur Bedienung',
+
+            connectionHeading: 'Verbindung zum Beamer',
+            passwordLabel: 'Passwort (falls im Beamer eingerichtet)',
+            testConnection: 'Verbindung testen',
+            connectedWith: 'Verbunden — {manufacturer} {model}',
+            scanNetwork: 'Beamer im Netzwerk suchen',
+            standbyHint: 'Die Suche findet nur Beamer, die gerade auf ihren Netzwerkanschluss antworten. Ein ausgeschalteter Beamer schaltet meist auch seine Netzwerkkarte ab. Damit er im Standby erreichbar bleibt — und sich von hier aus einschalten lässt —, muss im Beamer-Menü unter Netzwerk „Netzwerk-Standby" (teils „LAN im Standby" oder „Always On") aktiviert sein.',
+            useDevice: '{name} · übernehmen',
+
+            sourcesHeading: 'Bildquellen',
+            sourceInputColumn: 'Eingang am Beamer',
+            sourceLabelColumn: 'Name für die Bedienung',
+            sourceVisibleColumn: 'Anzeigen',
+            noInputsYet: 'Noch keine Eingänge bekannt. Der Knopf darunter fragt den Beamer.',
+            reloadInputs: 'Eingänge neu vom Beamer einlesen',
+
+            class2Heading: 'Zusatzfunktionen des Beamers',
+            class2Unknown: 'Noch nicht bekannt — die App fragt das beim Verbinden ab. Sobald die Verbindung steht, erscheint hier, was dieser Beamer zusätzlich kann.',
+            class1Reported: 'Dieser Beamer meldet PJLink Class 1. Lautstärke, Standbild und Wartungswerte gehören zu Class 2 und stehen an diesem Gerät nicht zur Verfügung. Bild ausblenden und Ton stumm gehören dagegen zu Class 1 — die bleiben auf dem Bedien-Bildschirm.',
+            class1Assumed: 'Der Beamer hat auf die Frage nach seinem PJLink-Stand nicht verwertbar geantwortet — der Grund steht unten im Protokoll. Vorsichtshalber gelten hier die Regeln von Class 1. Ob dieser Beamer wirklich nur Class 1 kann, ist damit aber nicht gesagt: steht im Handbuch PJLink Class 2, lohnt ein erneuter Verbindungsversuch.',
+            class2Available: 'Dieser Beamer meldet PJLink Class 2. Was davon er wirklich beherrscht, verrät PJLink nicht — das muss ausprobiert werden. Jede Funktion lässt sich hier einzeln einschalten. Antwortet der Beamer beim ersten Versuch, dass er den Befehl nicht kennt, schaltet sie sich von selbst wieder ab.',
+
+            features: {
+                volume: {
+                    title: 'Lautstärke',
+                    description: 'Knöpfe für lauter und leiser auf dem Bedien-Bildschirm. PJLink kennt hier nur Schritte auf und ab — einen Ist-Wert gibt der Beamer nicht heraus, es lässt sich also kein Balken anzeigen.'
+                },
+                freeze: {
+                    title: 'Standbild',
+                    description: 'Hält das Bild an. Anders als „Bild ausblenden" bleibt die Leinwand hell — brauchbar, wenn am Rechner etwas vorbereitet wird.'
+                },
+                deviceDetails: {
+                    title: 'Seriennummer und Softwarestand',
+                    description: 'Zeigt beides hier auf dieser Seite. Hilft bei Rückfragen an den Hersteller.'
+                },
+                inputNames: {
+                    title: 'Eingangsnamen vom Beamer',
+                    description: 'Übernimmt die im Beamer hinterlegten Namen der Eingänge als Vorschlag für die Bildquellen weiter oben.'
+                },
+                resolution: {
+                    title: 'Auflösung',
+                    description: 'Zeigt, welches Bild gerade anliegt und welche Auflösung der Beamer empfiehlt.'
+                },
+                maintenance: {
+                    title: 'Wartung',
+                    description: 'Betriebsstunden des Filters und die Bestellnummern für Ersatzlampe und Ersatzfilter.'
+                }
+            },
+
+            fetchValues: 'Werte vom Beamer abrufen',
+            querying: 'Wird abgefragt …',
+            applyInputNames: 'Eingangsnamen vom Beamer übernehmen',
+            applyInputNamesConfirmTitle: 'Namen vom Beamer übernehmen?',
+            applyInputNamesConfirmText: 'Die hier vergebenen Namen der Bildquellen werden durch die im Beamer hinterlegten ersetzt.',
+            applyInputNamesConfirmYes: 'Ja, übernehmen',
+
+            serialNumber: 'Seriennummer',
+            softwareVersion: 'Softwarestand',
+            currentResolution: 'Anliegendes Bild',
+            recommendedResolution: 'Vom Beamer empfohlen',
+            noSignal: 'kein Signal',
+            signalNotRecognized: 'Signal nicht erkannt',
+            filterHours: 'Filter in Betrieb seit',
+            hours: '{count} Stunden',
+            replacementLamp: 'Ersatzlampe',
+            replacementFilter: 'Ersatzfilter',
+            noneSpecified: 'keine angegeben',
+
+            appearanceHeading: 'Darstellung',
+            themeSystem: 'Wie das Betriebssystem',
+            themeLight: 'Hell',
+            themeDark: 'Dunkel',
+            highContrast: ' Hoher Kontrast (größere Schrift, kräftigere Ränder)',
+
+            languageHeading: 'Sprache',
+            languageSystem: 'Wie das Betriebssystem',
+
+            logHeading: 'Protokoll',
+            logEmpty: 'Noch nichts passiert.',
+            copyLog: 'Protokoll kopieren',
+            restartSetup: 'Einrichtung neu starten',
+            restartSetupConfirmTitle: 'Einrichtung neu starten?',
+            restartSetupConfirmText: 'Die gespeicherte Verbindung und die Namen der Bildquellen gehen dabei verloren.',
+            restartSetupConfirmYes: 'Ja, neu einrichten'
+        },
+
+        setup: {
+            wizardLabel: 'Einrichtung',
+
+            whereTitle: 'Wo steht der Beamer?',
+            whereText: 'Die App sucht im Netzwerk nach Beamern. Der Beamer muss dafür eingeschaltet oder im Netzwerk-Standby sein.',
+            searchProjectors: 'Beamer suchen',
+            enterIpInstead: 'IP-Adresse stattdessen selbst eingeben',
+            scanDuration: 'Das dauert bis zu einer halben Minute.',
+
+            noneFoundTitle: 'Kein Beamer gefunden',
+            noneFoundIntro: 'Das hat meist einen dieser Gründe:',
+            noneFoundReasonOff: 'Der Beamer ist ganz aus. Ein ausgeschalteter Beamer schaltet meist auch seine Netzwerkkarte ab und ist dann für kein Programm auffindbar. Schalte ihn zum Einrichten mit der Fernbedienung ein.',
+            noneFoundReasonStandby: 'Damit er auch im ausgeschalteten Zustand erreichbar bleibt, muss im Beamer-Menü unter Netzwerk die Einstellung „Netzwerk-Standby" (teils „LAN im Standby" oder „Always On") eingeschaltet sein.',
+            noneFoundReasonPjlink: 'Im Beamer-Menü ist PJLink nicht eingeschaltet.',
+            noneFoundReasonNetwork: 'Beamer und dieser Rechner hängen in verschiedenen Netzwerken.',
+
+            foundOne: 'Ein Gerät gefunden',
+            foundMany: '{count} Geräte gefunden',
+            chooseDevice: 'Wähle den Beamer aus, der gesteuert werden soll.',
+            select: 'auswählen',
+
+            deviceFound: '{name} gefunden',
+            enterIpTitle: 'IP-Adresse eingeben',
+            passwordHint: 'Falls im Beamer ein PJLink-Passwort eingerichtet ist, trag es hier ein — sonst einfach weiter.',
+            ipRequired: 'Bitte zuerst eine IP-Adresse eintragen.',
+            backToSearch: 'Zurück zur Suche',
+
+            noInputsTitle: 'Keine Eingänge gemeldet',
+            noInputsText: 'Der Beamer hat seine Anschlüsse nicht verraten. Das lässt sich später auf der Technik-Seite nachholen — die Bedienung funktioniert auch so, nur ohne Auswahl der Bildquelle.',
+            nameInputsTitle: 'Wie heißen die Anschlüsse bei euch?',
+            nameInputsText: 'Der Beamer meldet diese Eingänge. Gib ihnen Namen, die jeder versteht — und nimm den Haken weg bei allem, was ihr nie benutzt.',
+            inputColumn: 'Eingang',
+            nameColumn: 'Name',
+            showColumn: 'Zeigen',
+
+            doneTitle: 'Fertig',
+            doneText: 'Die Bedienung zeigt ab jetzt {sources} und den Ein/Aus-Schalter. Alles Technische liegt hinter dem Zahnrad oben rechts.',
+            doneSourceCount: '{count} Bildquelle(n)',
+            doneNoSources: 'keine Bildquellen',
+            toOperate: 'Zur Bedienung'
+        }
+    };
+});

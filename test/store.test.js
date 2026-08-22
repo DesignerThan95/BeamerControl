@@ -95,6 +95,60 @@ test('resetSetup nimmt die Einrichtung zurück', async () => {
     assert.strictEqual(store.isSetupComplete(), false);
 });
 
+// ---------- Language ----------
+
+// The decisive one for existing installations: a settings file written before
+// this feature must not lose anything, and must not force a language on anyone.
+test('a settings file without the language field means no choice yet', async () => {
+    const before = {
+        version: 2,
+        connection: { host: '192.168.1.100', port: 4352, password: null },
+        sources: [{ code: '31', label: 'Laptop', visible: true }],
+        appearance: { theme: 'system', highContrast: false },
+        setupCompleted: true
+    };
+    const store = createStore(fakeIo(before));
+    await store.load();
+    assert.strictEqual(store.isSetupComplete(), true, 'the setup stays done');
+    assert.strictEqual(store.getLanguage(), null, 'no override, so the operating system decides');
+});
+
+test('a chosen language is read back', async () => {
+    const store = createStore(fakeIo({ version: 2, language: 'de' }));
+    await store.load();
+    assert.strictEqual(store.getLanguage(), 'de');
+});
+
+test('a chosen language survives a restart', async () => {
+    const io = fakeIo(null);
+    const store = createStore(io);
+    await store.load();
+    store.setLanguage('de');
+    await store.save();
+    assert.strictEqual(io.peek().language, 'de', 'the field is written to disk');
+
+    const second = createStore({ load: async () => io.peek(), save: async () => {} });
+    await second.load();
+    assert.strictEqual(second.getLanguage(), 'de');
+});
+
+test('null takes the choice back so the operating system decides again', async () => {
+    const store = createStore(fakeIo({ version: 2, language: 'de' }));
+    await store.load();
+    store.setLanguage(null);
+    assert.strictEqual(store.getLanguage(), null);
+});
+
+// Only the shape is checked here. Whether a language actually ships is the
+// translation helper's business — otherwise this file would need changing
+// every time a language is added.
+test('a value that is not a language code is thrown away', () => {
+    assert.strictEqual(normalize({ version: 2, language: 'Deutsch' }).language, null);
+    assert.strictEqual(normalize({ version: 2, language: 'de-CH' }).language, null);
+    assert.strictEqual(normalize({ version: 2, language: 42 }).language, null);
+    assert.strictEqual(normalize({ version: 2, language: '' }).language, null);
+});
+
 // ---------- Class-2-Funktionen ----------
 
 test('ohne Angabe ist keine Class-2-Funktion freigeschaltet', async () => {

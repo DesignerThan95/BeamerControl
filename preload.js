@@ -47,6 +47,9 @@ contextBridge.exposeInMainWorld('pjlinkAPI', {
         return () => ipcRenderer.removeListener('scan-progress', handler);
     },
 
+    // Sprache des Betriebssystems
+    getOsLocale: () => ipcRenderer.invoke('get-os-locale'),
+
     // Farbschema des Betriebssystems
     getOsTheme: () => ipcRenderer.invoke('get-os-theme'),
     onOsThemeChange: (cb) => {

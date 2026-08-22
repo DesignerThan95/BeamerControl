@@ -5,6 +5,9 @@ const fs = require('fs');
 const os = require('os');
 const net = require('net');
 const PJLink = require('./index'); // PJLink Library
+// Nur wegen der Sprachnormalisierung: welche Sprachen es gibt, weiß der
+// Übersetzungs-Helfer — und nur dort soll diese Liste stehen.
+const i18n = require('./renderer/js/i18n');
 
 let mainWindow;
 let beamer = null;
@@ -481,4 +484,14 @@ nativeTheme.on('updated', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('os-theme-changed', nativeTheme.shouldUseDarkColors ? 'dark' : 'light');
     }
+});
+
+// ============ SPRACHE DES BETRIEBSSYSTEMS ============
+
+// Gleicher Weg wie beim Farbschema: das Betriebssystem wird gefragt, der
+// Renderer bekommt die Antwort. Herausgereicht wird nur eine Sprache, die
+// die App auch beherrscht — ein französisches Windows bekommt Englisch,
+// keinen halb übersetzten Bildschirm.
+ipcMain.handle('get-os-locale', async () => {
+    return i18n.normalizeLanguage(app.getLocale());
 });

@@ -30,6 +30,10 @@
         connection: { host: '', port: 4352, password: null },
         sources: [],
         appearance: { theme: 'system', highContrast: false },
+        // null heißt: noch keine eigene Wahl getroffen — dann gilt die Sprache
+        // des Betriebssystems. Eine bestehende Datei ohne dieses Feld landet
+        // genau hier, ganz ohne Umstellung.
+        language: null,
         setupCompleted: false,
         // Nichts ist von sich aus an: ein Knopf, hinter dem der Beamer keinen
         // Befehl kennt, ist schlimmer als ein fehlender Knopf.
@@ -66,6 +70,13 @@
         if (a && typeof a === 'object') {
             if (THEMES.indexOf(a.theme) !== -1) out.appearance.theme = a.theme;
             out.appearance.highContrast = a.highContrast === true;
+        }
+
+        // Geprüft wird nur die Form, nicht ob es die Sprache gibt: welche
+        // Sprachen die App mitbringt, weiß der Übersetzungs-Helfer. Sonst
+        // müsste diese Datei bei jeder neuen Sprache mit geändert werden.
+        if (typeof raw.language === 'string' && /^[a-z]{2}$/.test(raw.language)) {
+            out.language = raw.language;
         }
 
         if (Array.isArray(raw.enabledClass2Features)) {
@@ -127,6 +138,15 @@
 
             isClass2FeatureEnabled(key) {
                 return settings.enabledClass2Features.indexOf(key) !== -1;
+            },
+
+            // null nimmt die Wahl zurück: dann gilt wieder das Betriebssystem.
+            setLanguage(language) {
+                settings.language = normalize({ version: SCHEMA_VERSION, language }).language;
+            },
+
+            getLanguage() {
+                return settings.language;
             },
 
             setAppearance(appearance) {
