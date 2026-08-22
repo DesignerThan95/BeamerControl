@@ -1,6 +1,7 @@
 // Winzige DOM-Helfer und der Bestätigungsdialog. Kein Zustand, keine Netzwerklogik.
 window.App = window.App || {};
 window.App.ui = (function () {
+    const t = window.App.i18n.t;
 
     // el('div', {class:'x', onclick:fn}, ['Text', andererKnoten])
     function el(tag, attrs, kinder) {
@@ -50,8 +51,8 @@ window.App.ui = (function () {
                 el('h2', { text: opt.titel }),
                 el('p', { text: opt.text }),
                 el('div', { class: 'dialog-knoepfe' }, [
-                    el('button', { class: 'knopf', text: opt.abbrechen || 'Abbrechen', onclick: function () { schliessen(false); } }),
-                    el('button', { class: 'knopf haupt', text: opt.bestaetigen || 'Ja', onclick: function () { schliessen(true); } })
+                    el('button', { class: 'knopf', text: opt.abbrechen || t('common.cancel'), onclick: function () { schliessen(false); } }),
+                    el('button', { class: 'knopf haupt', text: opt.bestaetigen || t('common.yes'), onclick: function () { schliessen(true); } })
                 ])
             ]);
 

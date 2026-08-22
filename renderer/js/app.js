@@ -4,6 +4,7 @@ window.App = window.App || {};
 (function (App) {
     const api = App.api;
     const log = App.log;
+    const i18n = App.i18n;
 
     const store = App.store.createStore({
         load: function () { return api.loadSettings(); },
@@ -13,9 +14,11 @@ window.App = window.App || {};
     const theme = App.theme.createTheme(store);
     let muteHinweisGezeigt = false;
 
+    // Das Protokoll ist für die Technik gedacht und bleibt englisch — auch
+    // die Namen der Zusatzfunktionen darin. Sonst stünde in einer englischen
+    // Zeile plötzlich ein deutsches Wort.
     function featureName(key) {
-        const f = App.viewTech.FEATURES.find(function (x) { return x.key === key; });
-        return f ? f.titel : key;
+        return i18n.t('tech.features.' + key + '.title', null, i18n.FALLBACK_LANGUAGE);
     }
 
     // Kennt der Beamer einen Class-2-Befehl nicht, antwortet er mit ERR1.
@@ -118,11 +121,53 @@ window.App = window.App || {};
         if (aktiveAnsicht === 'setup' && App.viewSetup) App.viewSetup.render();
     }
 
+    // ---------- Sprache ----------
+
+    // Welche Sprache das Betriebssystem meldet. Kommt keine brauchbare Antwort,
+    // bleibt es bei der Rückfallsprache — eine fehlende Auskunft darf die App
+    // nicht am Starten hindern.
+    async function betriebssystemSprache() {
+        try {
+            return await api.getOsLocale();
+        } catch (e) {
+            return i18n.FALLBACK_LANGUAGE;
+        }
+    }
+
+    // Eine ausdrücklich gewählte Sprache sticht das Betriebssystem — bei jedem
+    // weiteren Start, bis sie wieder geändert wird. null heißt: keine Wahl
+    // getroffen, dann entscheidet das Betriebssystem.
+    async function spracheAnwenden(wahl) {
+        i18n.setLanguage(wahl || await betriebssystemSprache());
+        kopfzeileBeschriften();
+    }
+
+    // Die Kopfzeile steht als festes Gerüst in index.html und wird deshalb
+    // nicht mitgezeichnet — sie muss eigens nachgezogen werden.
+    function kopfzeileBeschriften() {
+        const titel = i18n.t('common.appTitle');
+        document.documentElement.lang = i18n.getCurrentLanguage();
+        document.title = titel;
+        document.querySelector('.kopf-titel').textContent = titel;
+        document.getElementById('themaKnopf').title = i18n.t('common.toggleThemeTitle');
+        document.getElementById('technikKnopf').title = i18n.t('common.techTitle');
+    }
+
     App.showView = showView;
     App.ctx = { store: store, beamer: beamer, theme: theme, api: api, log: log };
 
+    // Wird von der Technik-Seite und vom Einrichtungsassistenten gerufen.
+    App.setLanguage = async function (wahl) {
+        store.setLanguage(wahl);
+        await store.save();
+        await spracheAnwenden(wahl);
+        log.add('Sprache auf ' + i18n.getCurrentLanguage() + ' gestellt' + (wahl ? '' : ' (Betriebssystem)'), 'info');
+        zeichnen();
+    };
+
     async function start() {
         await store.load();
+        await spracheAnwenden(store.getLanguage());
         theme.init(function () { zeichnen(); });
 
         if (App.viewOperate) App.viewOperate.init(App.ctx);

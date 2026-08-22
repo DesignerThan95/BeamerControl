@@ -3,6 +3,11 @@ window.App = window.App || {};
 window.App.viewSetup = (function () {
     const ui = window.App.ui;
     const el = ui.el;
+    const t = window.App.i18n.t;
+
+    // Wie auf der Technik-Seite: Sprachnamen bleiben unübersetzt, sonst findet
+    // sie niemand wieder, der die eingestellte Sprache nicht lesen kann.
+    const SPRACHNAMEN = { de: 'Deutsch', en: 'English' };
 
     let ctx = null;
     let wurzel = null;
@@ -17,6 +22,21 @@ window.App.viewSetup = (function () {
 
     function neuZeichnen() { render(); }
 
+    // Die Sprachwahl steht in der Schrittleiste und damit auf jedem Schritt:
+    // wer die Einrichtung in der falschen Sprache vor sich hat, soll das
+    // sofort ändern können und nicht erst am Ende.
+    function sprachwahl() {
+        const gewaehlt = ctx.store.getLanguage();
+
+        return el('span', { class: 'sprachwahl' }, window.App.i18n.supportedLanguages().map(function (code) {
+            return el('button', {
+                class: 'knopf text' + (gewaehlt === code ? ' aktiv' : ''),
+                text: SPRACHNAMEN[code] || code,
+                onclick: function () { window.App.setLanguage(code); }
+            });
+        }));
+    }
+
     function schrittleiste() {
         const punkte = [1, 2, 3, 4].map(function (n) {
             let klasse = 'schritt';
@@ -25,7 +45,8 @@ window.App.viewSetup = (function () {
             return el('span', { class: klasse, text: n < schritt ? '✓' : String(n) });
         });
         return el('div', { class: 'schritte' }, punkte.concat([
-            el('span', { class: 'feld-lab', text: 'Einrichtung' })
+            el('span', { class: 'feld-lab', text: t('setup.wizardLabel') }),
+            sprachwahl()
         ]));
     }
 
@@ -68,12 +89,12 @@ window.App.viewSetup = (function () {
         return el('div', { class: 'trefferliste' }, suchlauf.devices.map(function (d) {
             return el('div', { class: 'treffer' }, [
                 el('span', {}, [
-                    el('strong', { text: d.name || 'PJLink-Gerät' }),
+                    el('strong', { text: d.name || t('common.pjlinkDevice') }),
                     el('span', { class: 'treffer-host', text: '   ' + d.host })
                 ]),
                 el('button', {
                     class: 'knopf text',
-                    text: 'auswählen',
+                    text: t('setup.select'),
                     onclick: function () { auswahl = d; schritt = 2; pruefText = ''; neuZeichnen(); }
                 })
             ]);
@@ -87,50 +108,58 @@ window.App.viewSetup = (function () {
             balken.firstChild.style.width = anteil + '%';
 
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: 'Suche läuft …' }),
-                el('div', { class: 'assistent-text', text: 'Das dauert bis zu einer halben Minute.' }),
+                el('div', { class: 'assistent-titel', text: t('common.scanRunning') }),
+                el('div', { class: 'assistent-text', text: t('setup.scanDuration') }),
                 balken,
-                el('div', { class: 'feld-lab', text: suchlauf.checked + ' von ' + suchlauf.total + ' Adressen geprüft · ' + suchlauf.devices.length + ' gefunden' }),
+                el('div', {
+                    class: 'feld-lab',
+                    text: t('common.scanProgress', { checked: suchlauf.checked, total: suchlauf.total, found: suchlauf.devices.length })
+                }),
                 trefferliste()
             ]);
         }
 
         if (suchlauf.fertig && suchlauf.devices.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: 'Kein Beamer gefunden' }),
-                el('div', { class: 'assistent-text', text: 'Das hat meist einen dieser Gründe:' }),
+                el('div', { class: 'assistent-titel', text: t('setup.noneFoundTitle') }),
+                el('div', { class: 'assistent-text', text: t('setup.noneFoundIntro') }),
                 el('ul', { class: 'pruefliste' }, [
-                    el('li', { text: 'Der Beamer ist ganz aus. Ein ausgeschalteter Beamer schaltet meist auch seine Netzwerkkarte ab und ist dann für kein Programm auffindbar. Schalte ihn zum Einrichten mit der Fernbedienung ein.' }),
-                    el('li', { text: 'Damit er auch im ausgeschalteten Zustand erreichbar bleibt, muss im Beamer-Menü unter Netzwerk die Einstellung „Netzwerk-Standby" (teils „LAN im Standby" oder „Always On") eingeschaltet sein.' }),
-                    el('li', { text: 'Im Beamer-Menü ist PJLink nicht eingeschaltet.' }),
-                    el('li', { text: 'Beamer und dieser Rechner hängen in verschiedenen Netzwerken.' })
+                    el('li', { text: t('setup.noneFoundReasonOff') }),
+                    el('li', { text: t('setup.noneFoundReasonStandby') }),
+                    el('li', { text: t('setup.noneFoundReasonPjlink') }),
+                    el('li', { text: t('setup.noneFoundReasonNetwork') })
                 ]),
                 el('div', { class: 'knopfzeile' }, [
-                    el('button', { class: 'knopf haupt', onclick: suchen }, ['Noch einmal suchen']),
-                    el('button', { class: 'knopf text', onclick: selbstEingeben }, ['IP-Adresse selbst eingeben'])
+                    el('button', { class: 'knopf haupt', onclick: suchen }, [t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: selbstEingeben }, [t('common.enterIpManually')])
                 ])
             ]);
         }
 
         if (suchlauf.fertig) {
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: suchlauf.devices.length === 1 ? 'Ein Gerät gefunden' : suchlauf.devices.length + ' Geräte gefunden' }),
-                el('div', { class: 'assistent-text', text: 'Wähle den Beamer aus, der gesteuert werden soll.' }),
+                el('div', {
+                    class: 'assistent-titel',
+                    text: suchlauf.devices.length === 1
+                        ? t('setup.foundOne')
+                        : t('setup.foundMany', { count: suchlauf.devices.length })
+                }),
+                el('div', { class: 'assistent-text', text: t('setup.chooseDevice') }),
                 trefferliste(),
                 el('div', { class: 'knopfzeile' }, [
-                    el('button', { class: 'knopf', onclick: suchen }, ['Noch einmal suchen']),
-                    el('button', { class: 'knopf text', onclick: selbstEingeben }, ['IP-Adresse selbst eingeben'])
+                    el('button', { class: 'knopf', onclick: suchen }, [t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: selbstEingeben }, [t('common.enterIpManually')])
                 ])
             ]);
         }
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: 'Wo steht der Beamer?' }),
-            el('div', { class: 'assistent-text', text: 'Die App sucht im Netzwerk nach Beamern. Der Beamer muss dafür eingeschaltet oder im Netzwerk-Standby sein.' }),
+            el('div', { class: 'assistent-titel', text: t('setup.whereTitle') }),
+            el('div', { class: 'assistent-text', text: t('setup.whereText') }),
             el('div', { class: 'knopfzeile' }, [
-                el('button', { class: 'knopf haupt', onclick: suchen }, ['Beamer suchen'])
+                el('button', { class: 'knopf haupt', onclick: suchen }, [t('setup.searchProjectors')])
             ]),
-            el('button', { class: 'knopf text', onclick: selbstEingeben }, ['IP-Adresse stattdessen selbst eingeben'])
+            el('button', { class: 'knopf text', onclick: selbstEingeben }, [t('setup.enterIpInstead')])
         ]);
     }
 
@@ -150,16 +179,19 @@ window.App.viewSetup = (function () {
     }
 
     function schritt2() {
-        const hostFeld = el('input', { class: 'eingabe', value: auswahl.host, type: 'text', placeholder: 'z. B. 192.168.1.100' });
-        const passFeld = el('input', { class: 'eingabe', value: passwort, type: 'password', placeholder: 'meistens leer' });
+        const hostFeld = el('input', { class: 'eingabe', value: auswahl.host, type: 'text', placeholder: t('common.hostPlaceholder') });
+        const passFeld = el('input', { class: 'eingabe', value: passwort, type: 'password', placeholder: t('common.passwordPlaceholder') });
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: auswahl.name ? auswahl.name + ' gefunden' : 'IP-Adresse eingeben' }),
-            el('div', { class: 'assistent-text', text: 'Falls im Beamer ein PJLink-Passwort eingerichtet ist, trag es hier ein — sonst einfach weiter.' }),
+            el('div', {
+                class: 'assistent-titel',
+                text: auswahl.name ? t('setup.deviceFound', { name: auswahl.name }) : t('setup.enterIpTitle')
+            }),
+            el('div', { class: 'assistent-text', text: t('setup.passwordHint') }),
             el('div', { class: 'felder' }, [
-                el('div', {}, [el('div', { class: 'feld-lab', text: 'IP-Adresse' }), hostFeld]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: 'Port' }), el('input', { class: 'eingabe', value: String(auswahl.port || 4352), type: 'number', disabled: true })]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: 'Passwort' }), passFeld])
+                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.ipAddress') }), hostFeld]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.port') }), el('input', { class: 'eingabe', value: String(auswahl.port || 4352), type: 'number', disabled: true })]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: t('common.password') }), passFeld])
             ]),
             pruefText ? el('div', { class: 'knopfzeile' }, [
                 el('span', { class: 'verbindungsstand' }, [el('span', { class: 'punkt' + (pruefArt === 'ok' ? ' an' : '') }), pruefText])
@@ -171,12 +203,12 @@ window.App.viewSetup = (function () {
                         auswahl.host = hostFeld.value.trim();
                         passwort = passFeld.value.trim();
                         if (!auswahl.host) {
-                            pruefText = 'Bitte zuerst eine IP-Adresse eintragen.';
+                            pruefText = t('setup.ipRequired');
                             pruefArt = 'fehler';
                             neuZeichnen();
                             return;
                         }
-                        pruefText = 'Verbinde …';
+                        pruefText = t('common.connecting');
                         pruefArt = 'info';
                         neuZeichnen();
                         try {
@@ -186,13 +218,13 @@ window.App.viewSetup = (function () {
                             await eingaengeLaden();
                             schritt = 3;
                         } catch (e) {
-                            pruefText = 'Keine Verbindung: ' + e.message;
+                            pruefText = t('common.connectionFailed', { message: e.message });
                             pruefArt = 'fehler';
                         }
                         neuZeichnen();
                     }
-                }, ['Weiter']),
-                el('button', { class: 'knopf', onclick: function () { schritt = 1; pruefText = ''; neuZeichnen(); } }, ['Zurück zur Suche'])
+                }, [t('common.next')]),
+                el('button', { class: 'knopf', onclick: function () { schritt = 1; pruefText = ''; neuZeichnen(); } }, [t('setup.backToSearch')])
             ])
         ]);
     }
@@ -207,12 +239,12 @@ window.App.viewSetup = (function () {
     }
 
     function schritt3() {
-        const weiter = el('button', { class: 'knopf haupt', onclick: quellenUebernehmen }, ['Weiter']);
+        const weiter = el('button', { class: 'knopf haupt', onclick: quellenUebernehmen }, [t('common.next')]);
 
         if (entwuerfe.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: 'Keine Eingänge gemeldet' }),
-                el('div', { class: 'assistent-text', text: 'Der Beamer hat seine Anschlüsse nicht verraten. Das lässt sich später auf der Technik-Seite nachholen — die Bedienung funktioniert auch so, nur ohne Auswahl der Bildquelle.' }),
+                el('div', { class: 'assistent-titel', text: t('setup.noInputsTitle') }),
+                el('div', { class: 'assistent-text', text: t('setup.noInputsText') }),
                 el('div', { class: 'knopfzeile' }, [weiter])
             ]);
         }
@@ -237,13 +269,13 @@ window.App.viewSetup = (function () {
         });
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: 'Wie heißen die Anschlüsse bei euch?' }),
-            el('div', { class: 'assistent-text', text: 'Der Beamer meldet diese Eingänge. Gib ihnen Namen, die jeder versteht — und nimm den Haken weg bei allem, was ihr nie benutzt.' }),
+            el('div', { class: 'assistent-titel', text: t('setup.nameInputsTitle') }),
+            el('div', { class: 'assistent-text', text: t('setup.nameInputsText') }),
             el('div', { class: 'quellzeile kopf' }, [
                 el('span'),
-                el('span', { text: 'Eingang' }),
-                el('span', { text: 'Name' }),
-                el('span', { class: 'haken', text: 'Zeigen' })
+                el('span', { text: t('setup.inputColumn') }),
+                el('span', { text: t('setup.nameColumn') }),
+                el('span', { class: 'haken', text: t('setup.showColumn') })
             ])
         ].concat(zeilen).concat([
             el('div', { class: 'knopfzeile' }, [weiter])
@@ -254,9 +286,13 @@ window.App.viewSetup = (function () {
 
     function schritt4() {
         const sichtbar = ctx.store.get().sources.filter(function (s) { return s.visible; });
+        const quellentext = sichtbar.length
+            ? t('setup.doneSourceCount', { count: sichtbar.length })
+            : t('setup.doneNoSources');
+
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: 'Fertig' }),
-            el('div', { class: 'assistent-text', text: 'Die Bedienung zeigt ab jetzt ' + (sichtbar.length ? sichtbar.length + ' Bildquelle(n)' : 'keine Bildquellen') + ' und den Ein/Aus-Schalter. Alles Technische liegt hinter dem Zahnrad oben rechts.' }),
+            el('div', { class: 'assistent-titel', text: t('setup.doneTitle') }),
+            el('div', { class: 'assistent-text', text: t('setup.doneText', { sources: quellentext }) }),
             el('div', { class: 'knopfzeile' }, [
                 el('button', {
                     class: 'knopf haupt',
@@ -267,7 +303,7 @@ window.App.viewSetup = (function () {
                         ctx.beamer.refreshNow();
                         window.App.showView('operate');
                     }
-                }, ['Zur Bedienung'])
+                }, [t('setup.toOperate')])
             ])
         ]);
     }

@@ -1,5 +1,9 @@
 // Zustandsmaschine des Beamers: fragt regelmäßig ab, sendet Befehle und wartet
 // auf deren Bestätigung. Kennt kein DOM — deshalb ohne Fenster testbar.
+//
+// commandError trägt entweder den Wortlaut der PJLink-Bibliothek oder eine
+// eigene Kennung ('command-not-confirmed', 'command-failed'). Fertige Sätze
+// stehen hier keine: übersetzt wird erst im Bedien-Bildschirm.
 (function (root, factory) {
     const api = factory();
     if (typeof module === 'object' && module.exports) {
@@ -163,7 +167,7 @@
                         teil.commandError = null;
                     } else if (now() - state.pending.startedAt >= COMMAND_TIMEOUT_MS) {
                         teil.pending = null;
-                        teil.commandError = 'Der Beamer hat den Befehl nicht bestätigt. Schau kurz zur Leinwand — oft hat es trotzdem geklappt.';
+                        teil.commandError = 'command-not-confirmed';
                     }
                 }
 
@@ -214,7 +218,7 @@
                 // Wichtig: der Befehl ist gescheitert, die Verbindung aber nicht.
                 // Die Bedienung muss weiter benutzbar bleiben — deshalb nur eine
                 // Meldung setzen, die sich wegklicken lässt.
-                aendern({ pending: null, commandError: e.message || 'Der Befehl ist fehlgeschlagen.' });
+                aendern({ pending: null, commandError: e.message || 'command-failed' });
                 throw e;
             }
         }
@@ -228,7 +232,7 @@
             try {
                 await fn();
             } catch (e) {
-                aendern({ commandError: e.message || 'Der Befehl ist fehlgeschlagen.' });
+                aendern({ commandError: e.message || 'command-failed' });
                 throw e;
             }
         }

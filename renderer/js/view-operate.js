@@ -3,14 +3,15 @@ window.App = window.App || {};
 window.App.viewOperate = (function () {
     const ui = window.App.ui;
     const el = ui.el;
+    const t = window.App.i18n.t;
 
     // Die PJLink-Rohnamen (RGB, DIGITAL, …) sagen niemandem etwas.
     // Erste Ziffer der Kennung ist die Art des Anschlusses.
-    const ANSCHLUSS_ART = { '1': 'VGA', '2': 'Video', '3': 'HDMI', '4': 'USB', '5': 'Netzwerk' };
+    const ANSCHLUSS_ART = { '1': 'vga', '2': 'video', '3': 'hdmi', '4': 'usb', '5': 'network' };
 
     function anschlussName(code) {
-        const art = ANSCHLUSS_ART[code.charAt(0)] || 'Eingang';
-        return art + ' ' + code.charAt(1);
+        const art = ANSCHLUSS_ART[code.charAt(0)] || 'other';
+        return t('operate.connectorName', { type: t('operate.connector.' + art), channel: code.charAt(1) });
     }
 
     let ctx = null;
@@ -40,21 +41,29 @@ window.App.viewOperate = (function () {
     }
 
     // Die PJLink-Bibliothek liefert englische Rohtexte. Auf diesem Bildschirm
-    // darf nichts davon stehen — der Rohtext bleibt im Protokoll.
+    // darf nichts davon stehen — der Rohtext bleibt im Protokoll. Die Schlüssel
+    // dieser Tabelle sind der Wortlaut der Bibliothek und dürfen sich nicht
+    // ändern; übersetzt wird nur, was daraus wird.
     const FEHLERTEXTE = {
-        'Undefined command': 'Der Beamer kennt diesen Befehl nicht.',
-        'Out of parameter': 'Der Beamer hat diese Einstellung nicht angenommen.',
-        'Unavailable time': 'Gerade nicht möglich — der Beamer ist beschäftigt, etwa beim Auf- oder Abwärmen.',
-        'Projector/Display failure': 'Der Beamer meldet eine Störung an sich selbst.',
-        'Authorization failed': 'Das Passwort stimmt nicht. Es lässt sich hinter dem Zahnrad ändern.',
-        'Command reply mismatch': 'Der Beamer hat unerwartet geantwortet.',
-        'Not connected': 'Gerade keine Verbindung zum Beamer.',
-        'Connection timeout': 'Der Beamer hat nicht rechtzeitig geantwortet.',
-        'Nicht verbunden': 'Gerade keine Verbindung zum Beamer.'
+        'Undefined command': 'operate.errors.undefinedCommand',
+        'Out of parameter': 'operate.errors.outOfParameter',
+        'Unavailable time': 'operate.errors.unavailableTime',
+        'Projector/Display failure': 'operate.errors.projectorFailure',
+        'Authorization failed': 'operate.errors.authorizationFailed',
+        'Command reply mismatch': 'operate.errors.replyMismatch',
+        'Not connected': 'operate.errors.notConnected',
+        'Connection timeout': 'operate.errors.connectionTimeout',
+        'Nicht verbunden': 'operate.errors.notConnected',
+        // Die Zustandsmaschine setzt keine fertigen Sätze, sondern diese
+        // Kennungen — nur so lässt sich ihre Meldung hier übersetzen.
+        'command-not-confirmed': 'operate.errors.notConfirmed',
+        'command-failed': 'operate.errors.commandFailed'
     };
 
     function fehlerKlartext(roh) {
-        return FEHLERTEXTE[roh] || roh || 'Der Beamer hat den Befehl nicht ausgeführt.';
+        const schluessel = FEHLERTEXTE[roh];
+        if (schluessel) return t(schluessel);
+        return roh || t('operate.errors.generic');
     }
 
     // ---------- Bausteine ----------
@@ -62,13 +71,13 @@ window.App.viewOperate = (function () {
     function fehlerstreifen(zustand) {
         return el('div', { class: 'streifen fehler' }, [
             el('div', {}, [
-                el('div', { class: 'streifen-titel', text: 'Das hat nicht geklappt' }),
+                el('div', { class: 'streifen-titel', text: t('operate.commandFailedTitle') }),
                 el('div', { class: 'streifen-text', text: fehlerKlartext(zustand.commandError) })
             ]),
             el('button', {
                 class: 'streifen-knopf',
                 onclick: function () { ctx.beamer.dismissError(); }
-            }, ['Verstanden'])
+            }, [t('operate.gotIt')])
         ]);
     }
 
@@ -92,8 +101,8 @@ window.App.viewOperate = (function () {
         }
 
         const chips = [
-            chip('Bild ausblenden', '🚫', zustand.mute.video, { video: !zustand.mute.video, audio: zustand.mute.audio }),
-            chip('Ton stumm', '🔇', zustand.mute.audio, { video: zustand.mute.video, audio: !zustand.mute.audio })
+            chip(t('operate.hideVideo'), '🚫', zustand.mute.video, { video: !zustand.mute.video, audio: zustand.mute.audio }),
+            chip(t('operate.muteAudio'), '🔇', zustand.mute.audio, { video: zustand.mute.video, audio: !zustand.mute.audio })
         ];
 
         // Das Standbild hat — anders als die Lautstärke — eine Abfrage und
@@ -107,13 +116,13 @@ window.App.viewOperate = (function () {
                     befehl(function () { return ctx.beamer.setFreeze(!zustand.freeze); },
                         zustand.freeze ? 'Standbild aufgehoben' : 'Standbild aktiviert');
                 }
-            }, [laeuft ? spinner() : '❄ ', 'Standbild']));
+            }, [laeuft ? spinner() : '❄ ', t('operate.freeze')]));
         }
 
         return el('div', { class: 'statuszeile' }, [
             el('div', { class: 'status' }, [
                 el('span', { class: 'punkt an' }),
-                'Beamer läuft'
+                t('operate.running')
             ]),
             el('div', { class: 'chips' }, chips)
         ]);
@@ -136,30 +145,30 @@ window.App.viewOperate = (function () {
                     el('button', {
                         class: 'knopf lautstaerke',
                         disabled: gesperrt,
-                        title: beschriftung + ' leiser',
+                        title: t('operate.volumeDownTitle', { label: beschriftung }),
                         onclick: function () { befehl(runter); }
-                    }, ['− leiser']),
+                    }, [t('operate.volumeDown')]),
                     el('button', {
                         class: 'knopf lautstaerke',
                         disabled: gesperrt,
-                        title: beschriftung + ' lauter',
+                        title: t('operate.volumeUpTitle', { label: beschriftung }),
                         onclick: function () { befehl(hoch); }
-                    }, ['+ lauter'])
+                    }, [t('operate.volumeUp')])
                 ])
             ]);
         }
 
         return el('div', {}, [
-            el('div', { class: 'feldname', text: 'Lautstärke am Beamer' }),
+            el('div', { class: 'feldname', text: t('operate.volumeHeading') }),
             el('div', { class: 'lautstaerke' }, [
-                paar('Ton',
+                paar(t('operate.audio'),
                     function () { return ctx.beamer.speakerVolumeDown(); },
                     function () { return ctx.beamer.speakerVolumeUp(); }),
-                paar('Mikrofon',
+                paar(t('operate.microphone'),
                     function () { return ctx.beamer.microphoneVolumeDown(); },
                     function () { return ctx.beamer.microphoneVolumeUp(); })
             ]),
-            el('p', { class: 'hinweis', text: 'Der Beamer meldet keinen Lautstärkewert zurück — hier lässt sich nur schrittweise lauter und leiser stellen.' })
+            el('p', { class: 'hinweis', text: t('operate.volumeHint') })
         ]);
     }
 
@@ -170,8 +179,8 @@ window.App.viewOperate = (function () {
 
         if (quellen.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'feldname', text: 'Was soll gezeigt werden?' }),
-                el('p', { class: 'mitte-text', text: 'Es ist noch keine Bildquelle eingerichtet. Über das Zahnrad oben rechts lässt sich das nachholen.' })
+                el('div', { class: 'feldname', text: t('operate.sourceHeading') }),
+                el('p', { class: 'mitte-text', text: t('operate.noSources') })
             ]);
         }
 
@@ -189,7 +198,7 @@ window.App.viewOperate = (function () {
             }, [
                 q.label,
                 wechselt
-                    ? el('span', { class: 'unter' }, [spinner(), ' wird umgeschaltet …'])
+                    ? el('span', { class: 'unter' }, [spinner(), t('operate.switching')])
                     : el('span', { class: 'unter', text: anschlussName(q.code) })
             ]);
         });
@@ -201,12 +210,12 @@ window.App.viewOperate = (function () {
         if (zustand.sourceCode && !bekannt) {
             kacheln.push(el('div', { class: 'kachel aktiv' }, [
                 zustand.sourceName || anschlussName(zustand.sourceCode),
-                el('span', { class: 'unter', text: 'nicht eingerichtet' })
+                el('span', { class: 'unter', text: t('operate.notConfigured') })
             ]));
         }
 
         return el('div', {}, [
-            el('div', { class: 'feldname', text: 'Was soll gezeigt werden?' }),
+            el('div', { class: 'feldname', text: t('operate.sourceHeading') }),
             el('div', { class: 'kacheln' }, kacheln)
         ]);
     }
@@ -217,14 +226,14 @@ window.App.viewOperate = (function () {
             disabled: laeuftBefehl(zustand),
             onclick: async function () {
                 const ja = await ui.confirmDialog({
-                    titel: 'Beamer ausschalten?',
-                    text: 'Nach dem Ausschalten braucht der Beamer einige Minuten, bevor er sich wieder einschalten lässt.',
-                    bestaetigen: 'Ja, ausschalten',
-                    abbrechen: 'Abbrechen'
+                    titel: t('operate.powerOffConfirmTitle'),
+                    text: t('operate.powerOffConfirmText'),
+                    bestaetigen: t('operate.powerOffConfirmYes'),
+                    abbrechen: t('common.cancel')
                 });
                 if (ja) befehl(function () { return ctx.beamer.powerOff(); }, 'Ausschalten angefordert');
             }
-        }, ['Beamer ausschalten']);
+        }, [t('operate.powerOff')]);
     }
 
     function mitte(titel, text, knopf) {
@@ -247,17 +256,17 @@ window.App.viewOperate = (function () {
 
     function inhaltFuer(zustand) {
         if (zustand.link === 'connecting') {
-            return warten('Einen Moment …', 'Die App nimmt Kontakt zum Beamer auf.');
+            return warten(t('operate.connectingTitle'), t('operate.connectingText'));
         }
 
         if (zustand.link === 'offline') {
             return mitte(
-                'Kein Kontakt zum Beamer',
-                'Die App versucht es weiter. Bleibt es dabei, hilft meist: Beamer einschalten oder Netzwerkkabel prüfen. Alles Weitere steht hinter dem Zahnrad oben rechts.',
+                t('operate.offlineTitle'),
+                t('operate.offlineText'),
                 el('button', {
                     class: 'knopf',
                     onclick: function () { ctx.beamer.refreshNow(); }
-                }, ['Jetzt noch einmal versuchen'])
+                }, [t('operate.retry')])
             );
         }
 
@@ -265,29 +274,29 @@ window.App.viewOperate = (function () {
         // der Beamer den neuen Zustand meldet. Sonst stünde weiter der
         // Einschalten-Knopf da, obwohl der Beamer längst hochfährt.
         if (zustand.pending && zustand.pending.kind === 'power-on') {
-            return warten('Der Beamer wird eingeschaltet …', 'Bitte einen Moment Geduld — das Hochfahren dauert meist eine halbe bis eine Minute.');
+            return warten(t('operate.poweringOnTitle'), t('operate.poweringOnText'));
         }
 
         if (zustand.pending && zustand.pending.kind === 'power-off') {
-            return warten('Der Beamer wird ausgeschaltet …', 'Danach kühlt die Lampe ab.');
+            return warten(t('operate.poweringOffTitle'), t('operate.poweringOffText'));
         }
 
         if (zustand.power === 'warming') {
-            return warten('Der Beamer wärmt sich auf …', 'Das dauert meist eine halbe bis eine Minute.');
+            return warten(t('operate.warmingTitle'), t('operate.warmingText'));
         }
 
         if (zustand.power === 'cooling') {
-            return warten('Der Beamer kühlt ab …', 'Solange die Lampe abkühlt, lässt er sich nicht wieder einschalten.');
+            return warten(t('operate.coolingTitle'), t('operate.coolingText'));
         }
 
         if (zustand.power === 'off' || zustand.power === 'unknown') {
             return mitte(
-                'Der Beamer ist aus',
+                t('operate.offTitle'),
                 null,
                 el('button', {
                     class: 'knopf haupt gross',
                     onclick: function () { befehl(function () { return ctx.beamer.powerOn(); }, 'Einschalten angefordert'); }
-                }, ['Beamer einschalten'])
+                }, [t('operate.powerOn')])
             );
         }
 
@@ -297,8 +306,8 @@ window.App.viewOperate = (function () {
         if (zustand.mute.video) {
             teile.push(el('div', { class: 'streifen' }, [
                 el('div', {}, [
-                    el('div', { class: 'streifen-titel', text: 'Die Leinwand ist gerade schwarz' }),
-                    el('div', { class: 'streifen-text', text: 'Der Beamer läuft weiter — das Bild ist nur ausgeblendet.' })
+                    el('div', { class: 'streifen-titel', text: t('operate.videoMutedTitle') }),
+                    el('div', { class: 'streifen-text', text: t('operate.videoMutedText') })
                 ]),
                 el('button', {
                     class: 'streifen-knopf',
@@ -308,7 +317,7 @@ window.App.viewOperate = (function () {
                             return ctx.beamer.setMute({ video: false, audio: zustand.mute.audio });
                         }, 'Bild wieder eingeblendet');
                     }
-                }, ['Bild wieder zeigen'])
+                }, [t('operate.showVideo')])
             ]));
         }
 
