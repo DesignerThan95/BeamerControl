@@ -38,6 +38,7 @@
       "index.js",
       "lib/**/*",
       "package.json",
+      "!node_modules/i18next/**/*",
       "!node_modules/electron/**/*",
       "!node_modules/electron-builder/**/*"
     ],
