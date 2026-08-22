@@ -13,12 +13,27 @@
     const SCHEMA_VERSION = 2;
     const THEMES = ['system', 'light', 'dark'];
 
+    // Zusatzfunktionen aus PJLink Class 2. Jeder Eintrag ist eine Sache, die
+    // die Technik freischalten kann — nicht ein einzelner PJLink-Befehl.
+    // Welche Befehle dahinterstehen, steht in main.js.
+    const CLASS2_FEATURES = [
+        'volume',        // Lautstärke Lautsprecher und Mikrofon (SVOL, MVOL)
+        'freeze',        // Standbild (FREZ)
+        'deviceDetails', // Seriennummer und Softwarestand (SNUM, SVER)
+        'inputNames',    // Eingangsnamen aus dem Beamer (INNM)
+        'resolution',    // anliegende und empfohlene Auflösung (IRES, RRES)
+        'maintenance'    // Filterstunden und Ersatzteilnummern (FILT, RLMP, RFIL)
+    ];
+
     const DEFAULTS = {
         version: SCHEMA_VERSION,
         connection: { host: '', port: 4352, password: null },
         sources: [],
         appearance: { theme: 'system', highContrast: false },
-        setupCompleted: false
+        setupCompleted: false,
+        // Nichts ist von sich aus an: ein Knopf, hinter dem der Beamer keinen
+        // Befehl kennt, ist schlimmer als ein fehlender Knopf.
+        enabledClass2Features: []
     };
 
     function copyDefaults() {
@@ -51,6 +66,12 @@
         if (a && typeof a === 'object') {
             if (THEMES.indexOf(a.theme) !== -1) out.appearance.theme = a.theme;
             out.appearance.highContrast = a.highContrast === true;
+        }
+
+        if (Array.isArray(raw.enabledClass2Features)) {
+            out.enabledClass2Features = CLASS2_FEATURES.filter(function (key) {
+                return raw.enabledClass2Features.indexOf(key) !== -1;
+            });
         }
 
         out.setupCompleted = raw.setupCompleted === true;
@@ -97,6 +118,17 @@
                 settings.sources = normalize({ version: SCHEMA_VERSION, sources: list }).sources;
             },
 
+            setClass2Features(list) {
+                settings.enabledClass2Features = normalize({
+                    version: SCHEMA_VERSION,
+                    enabledClass2Features: list
+                }).enabledClass2Features;
+            },
+
+            isClass2FeatureEnabled(key) {
+                return settings.enabledClass2Features.indexOf(key) !== -1;
+            },
+
             setAppearance(appearance) {
                 settings.appearance = normalize({ version: SCHEMA_VERSION, appearance }).appearance;
             },
@@ -111,5 +143,5 @@
         };
     }
 
-    return { createStore, normalize, DEFAULTS, SCHEMA_VERSION };
+    return { createStore, normalize, DEFAULTS, SCHEMA_VERSION, CLASS2_FEATURES };
 });

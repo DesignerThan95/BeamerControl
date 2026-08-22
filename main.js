@@ -86,12 +86,27 @@ ipcMain.handle('connect', async (event, { host, port, password }) => {
         // Test connection
         await promisifyPJLinkCall(beamer.getPowerState.bind(beamer));
 
-        return { success: true, message: 'Verbunden' };
+        return { success: true, message: 'Verbunden', pjlinkClass: await ermittleKlasse() };
     } catch (error) {
         beamer = null;
         throw new Error(error.message || 'Verbindung fehlgeschlagen');
     }
 });
+
+// Welchen PJLink-Stand meldet der Beamer? Class 2 kennt die Zusatzbefehle
+// (Lautstärke, Standbild, Wartungswerte), Class 1 nicht. Die Abfrage selbst
+// ist ein Class-1-Befehl und funktioniert deshalb überall.
+// Sie darf die Verbindung nicht scheitern lassen: antwortet ein älteres Gerät
+// darauf gar nicht, gilt Class 1 — dann bleiben die Zusatzfunktionen einfach aus.
+async function ermittleKlasse() {
+    try {
+        const roh = await promisifyPJLinkCall(beamer.getClass.bind(beamer));
+        const klasse = parseInt(roh, 10);
+        return klasse === 2 ? 2 : 1;
+    } catch (error) {
+        return 1;
+    }
+}
 
 ipcMain.handle('disconnect', async () => {
     try {
@@ -188,6 +203,119 @@ ipcMain.handle('get-device-info', async () => {
             model: 'Unbekannt'
         };
     }
+});
+
+// ============ PJLINK CLASS 2 ============
+
+// Ein Beamer, der einen Class-2-Befehl nicht kennt, antwortet mit ERR1.
+// Das ist kein Fehler der App und keiner der Verbindung — es heißt nur:
+// diese Funktion gibt es an diesem Gerät nicht. Sie wird dann in der
+// Oberfläche ausgegraut, statt eine Fehlermeldung auszulösen.
+// Alles andere (Zeitablauf, Passwort, Gerätestörung) bleibt ein echter Fehler
+// und geht unverändert an den Aufrufer.
+const KENNT_BEAMER_NICHT = 'Undefined command';
+
+async function class2(fn) {
+    if (!beamer) throw new Error('Nicht verbunden');
+
+    try {
+        return { supported: true, value: await fn() };
+    } catch (error) {
+        if (error.message === KENNT_BEAMER_NICHT) {
+            return { supported: false, reason: error.message };
+        }
+        throw error;
+    }
+}
+
+// ---- Lautstärke (SVOL / MVOL) ----
+// Rein relativ: eine Stufe hoch oder runter. Einen Ist-Wert gibt PJLink nicht
+// her und es gibt auch keine Abfrage dafür — so steht es in der Spezifikation.
+
+ipcMain.handle('speaker-volume', async (event, richtung) => {
+    return class2(() => promisifyPJLinkCall(beamer.setSpeakerVolume.bind(beamer), richtung));
+});
+
+ipcMain.handle('microphone-volume', async (event, richtung) => {
+    return class2(() => promisifyPJLinkCall(beamer.setMicrophoneVolume.bind(beamer), richtung));
+});
+
+// ---- Standbild (FREZ) ----
+
+ipcMain.handle('set-freeze', async (event, an) => {
+    return class2(() => promisifyPJLinkCall(beamer.setFreeze.bind(beamer), an === true));
+});
+
+ipcMain.handle('get-freeze', async () => {
+    return class2(() => promisifyPJLinkCall(beamer.getFreeze.bind(beamer)));
+});
+
+// ---- Gerätedaten (SNUM / SVER) ----
+
+ipcMain.handle('get-device-details', async () => {
+    return class2(async () => {
+        const [seriennummer, software] = await Promise.all([
+            promisifyPJLinkCall(beamer.getSerialNumber.bind(beamer)),
+            promisifyPJLinkCall(beamer.getSoftwareVersion.bind(beamer))
+        ]);
+        return { serialNumber: seriennummer, softwareVersion: software };
+    });
+});
+
+// ---- Name eines Eingangs (INNM) ----
+// Der einzige Class-2-Abfragebefehl mit Parameter: gefragt wird je Eingang.
+
+ipcMain.handle('get-input-name', async (event, code) => {
+    return class2(() => promisifyPJLinkCall(beamer.getInputName.bind(beamer), code));
+});
+
+// ---- Auflösung (IRES / RRES) ----
+
+ipcMain.handle('get-resolutions', async () => {
+    return class2(async () => {
+        const [anliegend, empfohlen] = await Promise.all([
+            promisifyPJLinkCall(beamer.getInputResolution.bind(beamer)),
+            promisifyPJLinkCall(beamer.getRecommendedResolution.bind(beamer))
+        ]);
+        return { input: anliegend, recommended: empfohlen };
+    });
+});
+
+// ---- Wartung (FILT / RLMP / RFIL) ----
+
+ipcMain.handle('get-maintenance', async () => {
+    if (!beamer) throw new Error('Nicht verbunden');
+
+    // Einzeln abgesichert: ein Laserbeamer hat keine Wechsellampe und
+    // antwortet auf RLMP mit ERR1, kennt aber sehr wohl die Filterstunden.
+    const [filterStunden, lampen, filter] = await Promise.allSettled([
+        promisifyPJLinkCall(beamer.getFilterUsage.bind(beamer)),
+        promisifyPJLinkCall(beamer.getLampReplacements.bind(beamer)),
+        promisifyPJLinkCall(beamer.getFilterReplacements.bind(beamer))
+    ]);
+    const alle = [filterStunden, lampen, filter];
+
+    const unbekannt = (e) => e.status === 'rejected' && e.reason.message === KENNT_BEAMER_NICHT;
+
+    // Kennt der Beamer keinen einzigen dieser Befehle, beherrscht er die
+    // Funktion nicht — sie wird ausgegraut, statt drei leere Felder zu zeigen.
+    if (alle.every(unbekannt)) {
+        return { supported: false, reason: KENNT_BEAMER_NICHT };
+    }
+
+    // Ein echter Fehler (Zeitablauf, Passwort, Gerätestörung) darf nicht als
+    // "dieser Wert fehlt eben" durchgehen.
+    const echterFehler = alle.find((e) => e.status === 'rejected' && !unbekannt(e));
+    if (echterFehler) throw new Error(echterFehler.reason.message);
+
+    return {
+        supported: true,
+        value: {
+            filterHours: filterStunden.status === 'fulfilled' ? filterStunden.value : null,
+            lampModels: lampen.status === 'fulfilled' ? (lampen.value || []) : [],
+            filterModels: filter.status === 'fulfilled' ? (filter.value || []) : []
+        }
+    };
 });
 
 // ============ EINSTELLUNGEN SPEICHERN/LADEN ============

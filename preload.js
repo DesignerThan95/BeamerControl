@@ -23,6 +23,16 @@ contextBridge.exposeInMainWorld('pjlinkAPI', {
     // Device Info
     getDeviceInfo: () => ipcRenderer.invoke('get-device-info'),
 
+    // PJLink Class 2 — Zusatzfunktionen, die nicht jeder Beamer beherrscht
+    speakerVolume: (richtung) => ipcRenderer.invoke('speaker-volume', richtung),
+    microphoneVolume: (richtung) => ipcRenderer.invoke('microphone-volume', richtung),
+    setFreeze: (an) => ipcRenderer.invoke('set-freeze', an),
+    getFreeze: () => ipcRenderer.invoke('get-freeze'),
+    getDeviceDetails: () => ipcRenderer.invoke('get-device-details'),
+    getInputName: (code) => ipcRenderer.invoke('get-input-name', code),
+    getResolutions: () => ipcRenderer.invoke('get-resolutions'),
+    getMaintenance: () => ipcRenderer.invoke('get-maintenance'),
+
     // Einstellungen speichern/laden
     loadSettings: () => ipcRenderer.invoke('load-settings'),
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

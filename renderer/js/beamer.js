@@ -24,6 +24,9 @@
         const schedule = deps.schedule;
         const cancel = deps.cancel;
         const now = deps.now;
+        // Welche Class-2-Zusatzfunktionen die Technik freigeschaltet hat.
+        // Ohne Auskunft gilt: keine — dann verhält sich alles wie vorher.
+        const isFeatureEnabled = deps.isFeatureEnabled || function () { return false; };
 
         let state = {
             link: 'connecting',
@@ -31,6 +34,10 @@
             sourceCode: null,
             sourceName: null,
             mute: { video: false, audio: false },
+            // Was der Beamer beim Verbinden über seinen PJLink-Stand meldet.
+            // null heißt: noch nicht gefragt.
+            pjlinkClass: null,
+            freeze: false,
             pending: null,
             commandError: null
         };
@@ -61,6 +68,7 @@
             if (p.kind === 'power-on') return neu.power === 'on';
             if (p.kind === 'power-off') return neu.power === 'off';
             if (p.kind === 'source') return neu.sourceCode === p.target;
+            if (p.kind === 'freeze') return neu.freeze === p.target;
             if (p.kind === 'mute') {
                 const ziel = p.target;
                 if (neu.mute.video === ziel.video && neu.mute.audio === ziel.audio) return true;
@@ -78,7 +86,8 @@
                 power: POWER_NAMEN[power.state] || 'unknown',
                 sourceCode: state.sourceCode,
                 sourceName: state.sourceName,
-                mute: state.mute
+                mute: state.mute,
+                freeze: state.freeze
             };
 
             // Quelle und Stummschaltung nur abfragen, wenn der Beamer läuft —
@@ -96,6 +105,14 @@
                     const m = await api.getMuteState();
                     if (m) neu.mute = { video: m.video === true, audio: m.audio === true };
                 } catch (e) { /* siehe oben */ }
+
+                // Nur fragen, wenn das Standbild auch freigeschaltet ist: ein
+                // Beamer ohne Class 2 antwortet auf jede Abfrage mit ERR1.
+                if (isFeatureEnabled('freeze')) {
+                    try {
+                        neu.freeze = (await api.getFreeze()) === true;
+                    } catch (e) { /* siehe oben */ }
+                }
             }
 
             return neu;
@@ -108,8 +125,13 @@
             try {
                 // Die Zustandsmaschine baut die Verbindung selbst auf. Solange sie
                 // nicht steht, wird vor jeder Abfrage ein neuer Versuch unternommen.
+                let klasse = state.pjlinkClass;
                 if (state.link !== 'online') {
-                    await api.connect();
+                    const erg = await api.connect();
+                    // Beim Verbinden sagt der Beamer, welchen PJLink-Stand er
+                    // beherrscht. Danach richtet sich, was die Technik-Seite
+                    // überhaupt zum Freischalten anbietet.
+                    if (erg && typeof erg.pjlinkClass === 'number') klasse = erg.pjlinkClass;
                 }
                 const neu = await abfragen();
                 fehlerInFolge = 0;
@@ -120,7 +142,9 @@
                     power: neu.power,
                     sourceCode: neu.sourceCode,
                     sourceName: neu.sourceName,
-                    mute: neu.mute
+                    mute: neu.mute,
+                    freeze: neu.freeze,
+                    pjlinkClass: klasse
                 };
 
                 if (state.pending) {
@@ -185,6 +209,20 @@
             }
         }
 
+        // SVOL und MVOL haben in PJLink kein Abfrage-Pendant: es gibt keinen
+        // Ist-Wert und damit nichts, worauf sich warten ließe. Solche Befehle
+        // laufen am Bestätigungsweg vorbei — liefen sie darüber, hinge nach
+        // jedem Tipp auf "lauter" die ganze Bedienung dreißig Sekunden fest.
+        async function ohneBestaetigung(fn) {
+            aendern({ commandError: null });
+            try {
+                await fn();
+            } catch (e) {
+                aendern({ commandError: e.message || 'Der Befehl ist fehlgeschlagen.' });
+                throw e;
+            }
+        }
+
         return {
             start: function () {
                 if (laeuft) return;
@@ -233,6 +271,29 @@
             setMute: function (m) {
                 const ziel = { video: m.video === true, audio: m.audio === true };
                 return senden('mute', ziel, function () { return api.setMute(ziel); });
+            },
+
+            // Das Standbild hat eine Abfrage und läuft deshalb ganz normal
+            // über den Bestätigungsweg wie Einschalten oder Quellenwechsel.
+            setFreeze: function (an) {
+                const ziel = an === true;
+                return senden('freeze', ziel, function () { return api.setFreeze(ziel); });
+            },
+
+            speakerVolumeUp: function () {
+                return ohneBestaetigung(function () { return api.speakerVolumeUp(); });
+            },
+
+            speakerVolumeDown: function () {
+                return ohneBestaetigung(function () { return api.speakerVolumeDown(); });
+            },
+
+            microphoneVolumeUp: function () {
+                return ohneBestaetigung(function () { return api.microphoneVolumeUp(); });
+            },
+
+            microphoneVolumeDown: function () {
+                return ohneBestaetigung(function () { return api.microphoneVolumeDown(); });
             }
         };
     }

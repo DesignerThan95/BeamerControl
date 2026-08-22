@@ -94,3 +94,72 @@ test('resetSetup nimmt die Einrichtung zurück', async () => {
     store.resetSetup();
     assert.strictEqual(store.isSetupComplete(), false);
 });
+
+// ---------- Class-2-Funktionen ----------
+
+test('ohne Angabe ist keine Class-2-Funktion freigeschaltet', async () => {
+    const store = createStore(fakeIo(null));
+    await store.load();
+    assert.deepStrictEqual(store.get().enabledClass2Features, []);
+    assert.strictEqual(store.isClass2FeatureEnabled('volume'), false);
+});
+
+// Entscheidend für den Bestand: eine bereits eingerichtete Anlage darf durch
+// das neue Feld nicht in den Einrichtungsassistenten zurückfallen.
+test('eine gespeicherte Datei ohne das neue Feld bleibt gültig', async () => {
+    const alt = {
+        version: 2,
+        connection: { host: '192.168.1.100', port: 4352, password: null },
+        sources: [{ code: '31', label: 'Laptop', visible: true }],
+        appearance: { theme: 'system', highContrast: false },
+        setupCompleted: true
+    };
+    const store = createStore(fakeIo(alt));
+    await store.load();
+    assert.strictEqual(store.isSetupComplete(), true, 'die Einrichtung bleibt bestehen');
+    assert.deepStrictEqual(store.get().enabledClass2Features, []);
+});
+
+test('freigeschaltete Funktionen werden gelesen', async () => {
+    const gueltig = {
+        version: 2,
+        connection: { host: '192.168.1.100', port: 4352, password: null },
+        sources: [],
+        appearance: { theme: 'system', highContrast: false },
+        setupCompleted: true,
+        enabledClass2Features: ['volume', 'freeze']
+    };
+    const store = createStore(fakeIo(gueltig));
+    await store.load();
+    assert.strictEqual(store.isClass2FeatureEnabled('volume'), true);
+    assert.strictEqual(store.isClass2FeatureEnabled('freeze'), true);
+    assert.strictEqual(store.isClass2FeatureEnabled('maintenance'), false);
+});
+
+// Ein unbekannter Eintrag in der Datei darf nirgends zu einem Knopf werden,
+// hinter dem kein Befehl steht.
+test('unbekannte Funktionsnamen werden verworfen', () => {
+    const n = normalize({ version: 2, enabledClass2Features: ['volume', 'kaffeekochen', 42, null] });
+    assert.deepStrictEqual(n.enabledClass2Features, ['volume']);
+});
+
+test('doppelte Einträge werden zusammengefasst', () => {
+    const n = normalize({ version: 2, enabledClass2Features: ['freeze', 'freeze'] });
+    assert.deepStrictEqual(n.enabledClass2Features, ['freeze']);
+});
+
+test('Freischalten und Speichern überlebt einen Neustart', async () => {
+    const io = fakeIo(null);
+    const store = createStore(io);
+    await store.load();
+    store.setConnection({ host: '10.0.0.5', port: 4352, password: null });
+    store.setClass2Features(['volume', 'resolution']);
+    store.markSetupComplete();
+    await store.save();
+
+    const zweiter = createStore({ load: async () => io.peek(), save: async () => {} });
+    await zweiter.load();
+    assert.strictEqual(zweiter.isClass2FeatureEnabled('volume'), true);
+    assert.strictEqual(zweiter.isClass2FeatureEnabled('resolution'), true);
+    assert.strictEqual(zweiter.isClass2FeatureEnabled('freeze'), false);
+});

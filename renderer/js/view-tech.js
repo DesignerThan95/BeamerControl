@@ -8,10 +8,50 @@ window.App.viewTech = (function () {
     let ctx = null;
     let wurzel = null;
 
+    // Zusatzfunktionen aus PJLink Class 2. Die Schlüssel müssen zu
+    // CLASS2_FEATURES in store.js passen; welche PJLink-Befehle dahinterstehen,
+    // steht in main.js.
+    const FEATURES = [
+        {
+            key: 'volume',
+            titel: 'Lautstärke',
+            beschreibung: 'Knöpfe für lauter und leiser auf dem Bedien-Bildschirm. PJLink kennt hier nur Schritte auf und ab — einen Ist-Wert gibt der Beamer nicht heraus, es lässt sich also kein Balken anzeigen.'
+        },
+        {
+            key: 'freeze',
+            titel: 'Standbild',
+            beschreibung: 'Hält das Bild an. Anders als „Bild ausblenden" bleibt die Leinwand hell — brauchbar, wenn am Rechner etwas vorbereitet wird.'
+        },
+        {
+            key: 'deviceDetails',
+            titel: 'Seriennummer und Softwarestand',
+            beschreibung: 'Zeigt beides hier auf dieser Seite. Hilft bei Rückfragen an den Hersteller.'
+        },
+        {
+            key: 'inputNames',
+            titel: 'Eingangsnamen vom Beamer',
+            beschreibung: 'Übernimmt die im Beamer hinterlegten Namen der Eingänge als Vorschlag für die Bildquellen weiter oben.'
+        },
+        {
+            key: 'resolution',
+            titel: 'Auflösung',
+            beschreibung: 'Zeigt, welches Bild gerade anliegt und welche Auflösung der Beamer empfiehlt.'
+        },
+        {
+            key: 'maintenance',
+            titel: 'Wartung',
+            beschreibung: 'Betriebsstunden des Filters und die Bestellnummern für Ersatzlampe und Ersatzfilter.'
+        }
+    ];
+
     // Nur für diese Ansicht: Ergebnisse und Stand des Netzwerk-Suchlaufs.
     let suchlauf = { laeuft: false, checked: 0, total: 0, devices: [] };
     let verbindungstext = '';
     let verbindungsArt = 'info';
+    // Abgerufene Class-2-Werte. Werden nicht gespeichert und nicht von selbst
+    // aktualisiert — sie stehen hier, weil jemand danach gefragt hat.
+    let class2Werte = { details: null, aufloesung: null, wartung: null };
+    let class2Laeuft = false;
 
     function neuZeichnen() { render(); }
 
@@ -223,6 +263,178 @@ window.App.viewTech = (function () {
         ]));
     }
 
+    // ---------- Zusatzfunktionen (PJLink Class 2) ----------
+
+    function aufloesungsText(a) {
+        if (!a) return 'unbekannt';
+        if (a.code === '-') return 'kein Signal';
+        if (a.code === '*') return 'Signal nicht erkannt';
+        return a.code;
+    }
+
+    function werteZeile(name, wert) {
+        return el('div', { class: 'wertzeile' }, [
+            el('span', { class: 'feld-lab', text: name }),
+            el('span', { text: wert })
+        ]);
+    }
+
+    // Holt genau die Werte, die freigeschaltet sind. Auf Knopfdruck, nicht von
+    // selbst: jede Abfrage geht als eigener Befehl an den Beamer.
+    async function class2Abrufen() {
+        class2Laeuft = true;
+        neuZeichnen();
+
+        const holen = async function (key, fn, ziel) {
+            if (!ctx.store.isClass2FeatureEnabled(key)) return;
+            try {
+                class2Werte[ziel] = await window.App.class2(key, fn);
+            } catch (e) {
+                class2Werte[ziel] = null;
+                ctx.log.add('Abfrage fehlgeschlagen (' + key + '): ' + e.message, 'fehler');
+            }
+        };
+
+        await holen('deviceDetails', function () { return ctx.api.getDeviceDetails(); }, 'details');
+        await holen('resolution', function () { return ctx.api.getResolutions(); }, 'aufloesung');
+        await holen('maintenance', function () { return ctx.api.getMaintenance(); }, 'wartung');
+
+        class2Laeuft = false;
+        neuZeichnen();
+    }
+
+    // Übernimmt die im Beamer hinterlegten Namen als Beschriftung der
+    // Bildquellen. Bestehende eigene Namen werden dabei überschrieben —
+    // deshalb steht das hinter einer Rückfrage.
+    async function eingangsnamenUebernehmen() {
+        const quellen = ctx.store.get().sources;
+        if (quellen.length === 0) {
+            ctx.log.add('Keine Bildquellen eingerichtet — erst Eingänge einlesen', 'info');
+            return;
+        }
+
+        const ja = await ui.confirmDialog({
+            titel: 'Namen vom Beamer übernehmen?',
+            text: 'Die hier vergebenen Namen der Bildquellen werden durch die im Beamer hinterlegten ersetzt.',
+            bestaetigen: 'Ja, übernehmen'
+        });
+        if (!ja) return;
+
+        const neu = quellen.slice();
+        let uebernommen = 0;
+
+        for (let i = 0; i < neu.length; i++) {
+            try {
+                const name = await window.App.class2('inputNames', function () {
+                    return ctx.api.getInputName(neu[i].code);
+                });
+                if (name) {
+                    neu[i] = Object.assign({}, neu[i], { label: name });
+                    uebernommen++;
+                }
+            } catch (e) {
+                ctx.log.add('Name für Eingang ' + neu[i].code + ' nicht lesbar: ' + e.message, 'fehler');
+                break; // Kennt der Beamer den Befehl nicht, bringen weitere Versuche nichts.
+            }
+        }
+
+        ctx.store.setSources(neu);
+        await ctx.store.save();
+        ctx.log.add(uebernommen + ' Eingangsname(n) vom Beamer übernommen', uebernommen ? 'ok' : 'info');
+        neuZeichnen();
+    }
+
+    function zusatzBlock() {
+        const klasse = ctx.beamer.getState().pjlinkClass;
+
+        const kinder = [el('div', { class: 'block-titel', text: 'Zusatzfunktionen des Beamers' })];
+
+        // Solange nicht verbunden wurde, ist unbekannt, was das Gerät kann.
+        // Dann hier gar nichts anzubieten ist ehrlicher als Kästchen, die
+        // vielleicht ins Leere führen.
+        if (klasse === null) {
+            kinder.push(el('p', { class: 'hinweis', text: 'Noch nicht bekannt — die App fragt das beim Verbinden ab. Sobald die Verbindung steht, erscheint hier, was dieser Beamer zusätzlich kann.' }));
+            return el('div', { class: 'block' }, kinder);
+        }
+
+        if (klasse !== 2) {
+            kinder.push(el('p', { class: 'hinweis', text: 'Dieser Beamer meldet nur PJLink Class 1. Lautstärke, Standbild und Wartungswerte gehören zu Class 2 und stehen an diesem Gerät nicht zur Verfügung.' }));
+            return el('div', { class: 'block' }, kinder);
+        }
+
+        kinder.push(el('p', { class: 'hinweis', text: 'Dieser Beamer meldet PJLink Class 2. Was davon er wirklich beherrscht, verrät PJLink nicht — das muss ausprobiert werden. Jede Funktion lässt sich hier einzeln einschalten. Antwortet der Beamer beim ersten Versuch, dass er den Befehl nicht kennt, schaltet sie sich von selbst wieder ab.' }));
+
+        kinder.push(el('div', { class: 'funktionsliste' }, FEATURES.map(function (f) {
+            const an = ctx.store.isClass2FeatureEnabled(f.key);
+
+            return el('label', { class: 'funktion' }, [
+                el('input', {
+                    type: 'checkbox',
+                    checked: an,
+                    onchange: async function (e) {
+                        const jetzt = ctx.store.get().enabledClass2Features.filter(function (k) { return k !== f.key; });
+                        if (e.target.checked) jetzt.push(f.key);
+                        ctx.store.setClass2Features(jetzt);
+                        await ctx.store.save();
+                        ctx.log.add(f.titel + (e.target.checked ? ' eingeschaltet' : ' ausgeschaltet'), 'info');
+                        neuZeichnen();
+                    }
+                }),
+                el('span', {}, [
+                    el('span', { class: 'funktion-titel', text: f.titel }),
+                    el('span', { class: 'funktion-text', text: f.beschreibung })
+                ])
+            ]);
+        })));
+
+        // Der Knopf für die Eingangsnamen gehört zu den Bildquellen und wird
+        // deshalb nur gezeigt, wenn diese Funktion eingeschaltet ist.
+        const knoepfe = [];
+        const zeigtWerte = ['deviceDetails', 'resolution', 'maintenance'].some(function (k) {
+            return ctx.store.isClass2FeatureEnabled(k);
+        });
+
+        if (zeigtWerte) {
+            knoepfe.push(el('button', {
+                class: 'knopf',
+                disabled: class2Laeuft,
+                onclick: function () { class2Abrufen(); }
+            }, [class2Laeuft ? 'Wird abgefragt …' : 'Werte vom Beamer abrufen']));
+        }
+
+        if (ctx.store.isClass2FeatureEnabled('inputNames')) {
+            knoepfe.push(el('button', {
+                class: 'knopf',
+                onclick: function () { eingangsnamenUebernehmen(); }
+            }, ['Eingangsnamen vom Beamer übernehmen']));
+        }
+
+        if (knoepfe.length) kinder.push(el('div', { class: 'knopfzeile' }, knoepfe));
+
+        const werte = [];
+
+        if (class2Werte.details) {
+            werte.push(werteZeile('Seriennummer', class2Werte.details.serialNumber || 'unbekannt'));
+            werte.push(werteZeile('Softwarestand', class2Werte.details.softwareVersion || 'unbekannt'));
+        }
+
+        if (class2Werte.aufloesung) {
+            werte.push(werteZeile('Anliegendes Bild', aufloesungsText(class2Werte.aufloesung.input)));
+            werte.push(werteZeile('Vom Beamer empfohlen', aufloesungsText(class2Werte.aufloesung.recommended)));
+        }
+
+        if (class2Werte.wartung) {
+            const w = class2Werte.wartung;
+            werte.push(werteZeile('Filter in Betrieb seit', w.filterHours === null ? 'unbekannt' : w.filterHours + ' Stunden'));
+            werte.push(werteZeile('Ersatzlampe', w.lampModels.length ? w.lampModels.join(', ') : 'keine angegeben'));
+            werte.push(werteZeile('Ersatzfilter', w.filterModels.length ? w.filterModels.join(', ') : 'keine angegeben'));
+        }
+
+        if (werte.length) kinder.push(el('div', { class: 'werte' }, werte));
+
+        return el('div', { class: 'block' }, kinder);
+    }
+
     // ---------- Darstellung ----------
 
     function darstellungsBlock() {
@@ -309,6 +521,7 @@ window.App.viewTech = (function () {
             el('button', { class: 'knopf text zurueck', text: '← Zurück zur Bedienung', onclick: function () { window.App.showView('operate'); } }),
             verbindungsBlock(),
             quellenBlock(),
+            zusatzBlock(),
             darstellungsBlock(),
             protokollBlock()
         ]));
@@ -316,6 +529,7 @@ window.App.viewTech = (function () {
 
     return {
         init: function (c) { ctx = c; },
-        render: render
+        render: render,
+        FEATURES: FEATURES
     };
 })();

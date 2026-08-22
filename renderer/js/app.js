@@ -13,7 +13,32 @@ window.App = window.App || {};
     const theme = App.theme.createTheme(store);
     let muteHinweisGezeigt = false;
 
+    function featureName(key) {
+        const f = App.viewTech.FEATURES.find(function (x) { return x.key === key; });
+        return f ? f.titel : key;
+    }
+
+    // Kennt der Beamer einen Class-2-Befehl nicht, antwortet er mit ERR1.
+    // Dann wird die zugehörige Funktion dauerhaft abgeschaltet, statt bei
+    // jedem Druck dieselbe Fehlermeldung zu erzeugen. Das Ergebnis wird
+    // ausgepackt, damit der Rest der App nur den Wert sieht.
+    async function class2(key, fn) {
+        const erg = await fn();
+        if (erg && erg.supported === false) {
+            const rest = store.get().enabledClass2Features.filter(function (k) { return k !== key; });
+            store.setClass2Features(rest);
+            await store.save();
+            log.add('Der Beamer kennt „' + featureName(key) + '" nicht — die Funktion wurde abgeschaltet.', 'info');
+            zeichnen();
+            throw new Error('Undefined command');
+        }
+        return erg ? erg.value : undefined;
+    }
+
+    App.class2 = class2;
+
     const beamer = App.beamer.createBeamer({
+        isFeatureEnabled: function (key) { return store.isClass2FeatureEnabled(key); },
         api: {
             connect: function () {
                 const c = store.get().connection;
@@ -35,7 +60,15 @@ window.App = window.App || {};
                     log.add('Dieser Beamer kann Bild und Ton nur gemeinsam stummschalten — beide Schalter wirken deshalb zusammen.', 'info');
                 }
                 return erg;
-            }
+            },
+
+            // ---- PJLink Class 2 ----
+            getFreeze: function () { return class2('freeze', function () { return api.getFreeze(); }); },
+            setFreeze: function (an) { return class2('freeze', function () { return api.setFreeze(an); }); },
+            speakerVolumeUp: function () { return class2('volume', function () { return api.speakerVolume('up'); }); },
+            speakerVolumeDown: function () { return class2('volume', function () { return api.speakerVolume('down'); }); },
+            microphoneVolumeUp: function () { return class2('volume', function () { return api.microphoneVolume('up'); }); },
+            microphoneVolumeDown: function () { return class2('volume', function () { return api.microphoneVolume('down'); }); }
         },
         schedule: function (fn, ms) { return window.setTimeout(fn, ms); },
         cancel: function (id) { window.clearTimeout(id); },

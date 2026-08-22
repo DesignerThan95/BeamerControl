@@ -91,15 +91,75 @@ window.App.viewOperate = (function () {
             }, [zeigtSpinner ? spinner() : symbol + ' ', beschriftung]);
         }
 
+        const chips = [
+            chip('Bild ausblenden', '🚫', zustand.mute.video, { video: !zustand.mute.video, audio: zustand.mute.audio }),
+            chip('Ton stumm', '🔇', zustand.mute.audio, { video: zustand.mute.video, audio: !zustand.mute.audio })
+        ];
+
+        // Das Standbild hat — anders als die Lautstärke — eine Abfrage und
+        // läuft deshalb über denselben Bestätigungsweg wie die Stummschaltung.
+        if (ctx.store.isClass2FeatureEnabled('freeze')) {
+            const laeuft = zustand.pending && zustand.pending.kind === 'freeze';
+            chips.push(el('button', {
+                class: 'chip' + (zustand.freeze ? ' aktiv' : ''),
+                disabled: gesperrt,
+                onclick: function () {
+                    befehl(function () { return ctx.beamer.setFreeze(!zustand.freeze); },
+                        zustand.freeze ? 'Standbild aufgehoben' : 'Standbild aktiviert');
+                }
+            }, [laeuft ? spinner() : '❄ ', 'Standbild']));
+        }
+
         return el('div', { class: 'statuszeile' }, [
             el('div', { class: 'status' }, [
                 el('span', { class: 'punkt an' }),
                 'Beamer läuft'
             ]),
-            el('div', { class: 'chips' }, [
-                chip('Bild ausblenden', '🚫', zustand.mute.video, { video: !zustand.mute.video, audio: zustand.mute.audio }),
-                chip('Ton stumm', '🔇', zustand.mute.audio, { video: zustand.mute.video, audio: !zustand.mute.audio })
-            ])
+            el('div', { class: 'chips' }, chips)
+        ]);
+    }
+
+    // PJLink gibt bei der Lautstärke keinen Ist-Wert her und kennt auch keine
+    // Abfrage dafür — es gibt nur Schritte auf und ab. Deshalb kein Balken,
+    // keine Zahl und keine Bestätigungsanzeige: der Druck geht raus, fertig.
+    // Aus demselben Grund sperrt sich hier nichts selbst; mehrmals kurz
+    // hintereinander zu drücken ist der übliche Fall.
+    function lautstaerkeBereich(zustand) {
+        if (!ctx.store.isClass2FeatureEnabled('volume')) return null;
+
+        const gesperrt = laeuftBefehl(zustand);
+
+        function paar(beschriftung, runter, hoch) {
+            return el('div', { class: 'lautstaerke-paar' }, [
+                el('div', { class: 'feld-lab', text: beschriftung }),
+                el('div', { class: 'lautstaerke-knoepfe' }, [
+                    el('button', {
+                        class: 'knopf lautstaerke',
+                        disabled: gesperrt,
+                        title: beschriftung + ' leiser',
+                        onclick: function () { befehl(runter); }
+                    }, ['− leiser']),
+                    el('button', {
+                        class: 'knopf lautstaerke',
+                        disabled: gesperrt,
+                        title: beschriftung + ' lauter',
+                        onclick: function () { befehl(hoch); }
+                    }, ['+ lauter'])
+                ])
+            ]);
+        }
+
+        return el('div', {}, [
+            el('div', { class: 'feldname', text: 'Lautstärke am Beamer' }),
+            el('div', { class: 'lautstaerke' }, [
+                paar('Ton',
+                    function () { return ctx.beamer.speakerVolumeDown(); },
+                    function () { return ctx.beamer.speakerVolumeUp(); }),
+                paar('Mikrofon',
+                    function () { return ctx.beamer.microphoneVolumeDown(); },
+                    function () { return ctx.beamer.microphoneVolumeUp(); })
+            ]),
+            el('p', { class: 'hinweis', text: 'Der Beamer meldet keinen Lautstärkewert zurück — hier lässt sich nur schrittweise lauter und leiser stellen.' })
         ]);
     }
 
@@ -252,7 +312,12 @@ window.App.viewOperate = (function () {
             ]));
         }
 
-        teile.push(statuszeile(zustand), quellenBereich(zustand), ausschaltKnopf(zustand));
+        teile.push(statuszeile(zustand), quellenBereich(zustand));
+
+        const lautstaerke = lautstaerkeBereich(zustand);
+        if (lautstaerke) teile.push(lautstaerke);
+
+        teile.push(ausschaltKnopf(zustand));
 
         return el('div', {}, teile);
     }

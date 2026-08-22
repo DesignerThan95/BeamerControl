@@ -41,10 +41,10 @@ function fakeClock() {
 
 function fakeApi(anfang) {
     return {
-        zustand: Object.assign({ power: 0, input: { code: '31', name: 'DIGITAL - 1' }, mute: { video: false, audio: false } }, anfang || {}),
+        zustand: Object.assign({ power: 0, input: { code: '31', name: 'DIGITAL - 1' }, mute: { video: false, audio: false }, freeze: false, pjlinkClass: 1 }, anfang || {}),
         fehler: false,
         rufe: [],
-        async connect() { this.rufe.push('connect'); if (this.fehler) throw new Error('offline'); return { success: true }; },
+        async connect() { this.rufe.push('connect'); if (this.fehler) throw new Error('offline'); return { success: true, pjlinkClass: this.zustand.pjlinkClass }; },
         abfragen: 0,
         async getPowerState() {
             this.abfragen++;
@@ -57,14 +57,26 @@ function fakeApi(anfang) {
         async powerOn() { this.rufe.push('powerOn'); },
         async powerOff() { this.rufe.push('powerOff'); },
         async setInput(code) { this.rufe.push('setInput:' + code); },
-        async setMute(m) { this.rufe.push('setMute:' + m.video + ',' + m.audio); }
+        async setMute(m) { this.rufe.push('setMute:' + m.video + ',' + m.audio); },
+        async getFreeze() { this.rufe.push('getFreeze'); if (this.fehler) throw new Error('Zeitüberschreitung'); return this.zustand.freeze; },
+        async setFreeze(an) { this.rufe.push('setFreeze:' + an); },
+        async speakerVolumeUp() { this.rufe.push('speakerVolumeUp'); },
+        async speakerVolumeDown() { this.rufe.push('speakerVolumeDown'); },
+        async microphoneVolumeUp() { this.rufe.push('microphoneVolumeUp'); },
+        async microphoneVolumeDown() { this.rufe.push('microphoneVolumeDown'); }
     };
 }
 
-function bauen(anfang) {
+// `features` weglassen heißt: die Zustandsmaschine bekommt gar keine Auskunft
+// über Freischaltungen — so, wie sie vor der Class-2-Erweiterung gebaut wurde.
+function bauen(anfang, features) {
     const uhr = fakeClock();
     const api = fakeApi(anfang);
-    const b = createBeamer({ api, schedule: uhr.schedule, cancel: uhr.cancel, now: uhr.now });
+    const deps = { api, schedule: uhr.schedule, cancel: uhr.cancel, now: uhr.now };
+    if (features) {
+        deps.isFeatureEnabled = function (key) { return features.indexOf(key) !== -1; };
+    }
+    const b = createBeamer(deps);
     return { uhr, api, b };
 }
 
@@ -318,4 +330,131 @@ test('stop beendet die Abfrage-Schleife', async () => {
     const vorher = api.rufe.length;
     await uhr.advance(POLL_MS * 5);
     assert.strictEqual(api.rufe.length, vorher);
+});
+
+// ---------- PJLink Class 2 ----------
+
+test('die vom Beamer gemeldete PJLink-Klasse steht im Zustand', async () => {
+    const { uhr, b } = bauen({ power: 1, pjlinkClass: 2 });
+    b.start();
+    await uhr.advance(1);
+    assert.strictEqual(b.getState().pjlinkClass, 2);
+});
+
+test('meldet der Beamer nur Class 1, steht auch das im Zustand', async () => {
+    const { uhr, b } = bauen({ power: 1, pjlinkClass: 1 });
+    b.start();
+    await uhr.advance(1);
+    assert.strictEqual(b.getState().pjlinkClass, 1);
+});
+
+// Ist das Standbild nicht freigeschaltet, darf es auch nicht abgefragt werden:
+// ein Class-1-Beamer antwortete auf jede Abfrage mit ERR1.
+test('ohne Freischaltung wird das Standbild nicht abgefragt', async () => {
+    const { uhr, api, b } = bauen({ power: 1, pjlinkClass: 2 }, []);
+    b.start();
+    await uhr.advance(POLL_MS * 2);
+    assert.strictEqual(api.rufe.indexOf('getFreeze'), -1);
+});
+
+test('mit Freischaltung wird das Standbild abgefragt', async () => {
+    const { uhr, api, b } = bauen({ power: 1, pjlinkClass: 2, freeze: true }, ['freeze']);
+    b.start();
+    await uhr.advance(1);
+    assert.ok(api.rufe.indexOf('getFreeze') !== -1);
+    assert.strictEqual(b.getState().freeze, true);
+});
+
+test('bei ausgeschaltetem Beamer wird das Standbild nicht abgefragt', async () => {
+    const { uhr, api, b } = bauen({ power: 0, pjlinkClass: 2 }, ['freeze']);
+    b.start();
+    await uhr.advance(POLL_MS * 2);
+    assert.strictEqual(api.rufe.indexOf('getFreeze'), -1);
+});
+
+test('Standbild wartet auf die Bestätigung des Beamers', async () => {
+    const { uhr, api, b } = bauen({ power: 1, pjlinkClass: 2 }, ['freeze']);
+    b.start();
+    await uhr.advance(1);
+
+    await b.setFreeze(true);
+    assert.ok(api.rufe.indexOf('setFreeze:true') !== -1);
+    assert.strictEqual(b.getState().pending.kind, 'freeze');
+
+    api.zustand.freeze = true;
+    await uhr.advance(POLL_MS);
+    assert.strictEqual(b.getState().pending, null, 'mit dem gemeldeten Standbild ist der Befehl erledigt');
+    assert.strictEqual(b.getState().freeze, true);
+});
+
+// Der eigentliche Grund für diese Sonderbehandlung: SVOL und MVOL haben in
+// PJLink kein Abfrage-Pendant. Liefe die Lautstärke über den normalen
+// Bestätigungsweg, bliebe sie 30 Sekunden hängen und sperrte in dieser Zeit
+// die gesamte Bedienung — bei jedem einzelnen Tipp auf "lauter".
+test('Lautstärke sperrt die Bedienung nicht', async () => {
+    const { uhr, api, b } = bauen({ power: 1, pjlinkClass: 2 }, ['volume']);
+    b.start();
+    await uhr.advance(1);
+
+    await b.speakerVolumeUp();
+    assert.ok(api.rufe.indexOf('speakerVolumeUp') !== -1);
+    assert.strictEqual(b.getState().pending, null, 'kein wartender Befehl');
+});
+
+test('Lautstärke läuft nicht in den Dreißig-Sekunden-Ablauf', async () => {
+    const { uhr, b } = bauen({ power: 1, pjlinkClass: 2 }, ['volume']);
+    b.start();
+    await uhr.advance(1);
+
+    await b.speakerVolumeUp();
+    await uhr.advance(COMMAND_TIMEOUT_MS + POLL_MS * 2);
+
+    assert.strictEqual(b.getState().commandError, null, 'es darf keine Meldung über einen unbestätigten Befehl geben');
+    assert.strictEqual(b.getState().pending, null);
+});
+
+test('mehrere Lautstärkeschritte hintereinander sind möglich', async () => {
+    const { uhr, api, b } = bauen({ power: 1, pjlinkClass: 2 }, ['volume']);
+    b.start();
+    await uhr.advance(1);
+
+    await b.speakerVolumeUp();
+    await b.speakerVolumeUp();
+    await b.speakerVolumeDown();
+    await b.microphoneVolumeUp();
+    await b.microphoneVolumeDown();
+
+    const lautstaerke = api.rufe.filter(function (r) { return r.indexOf('VolumeUp') !== -1 || r.indexOf('VolumeDown') !== -1; });
+    assert.deepStrictEqual(lautstaerke, [
+        'speakerVolumeUp', 'speakerVolumeUp', 'speakerVolumeDown',
+        'microphoneVolumeUp', 'microphoneVolumeDown'
+    ]);
+});
+
+// Kennt der Beamer SVOL nicht, muss das sichtbar werden — aber ohne die
+// Bedienung anzuhalten.
+test('ein abgelehnter Lautstärkebefehl wird gemeldet, ohne zu sperren', async () => {
+    const { uhr, api, b } = bauen({ power: 1, pjlinkClass: 2 }, ['volume']);
+    b.start();
+    await uhr.advance(1);
+
+    api.speakerVolumeUp = async () => { throw new Error('Undefined command'); };
+    await assert.rejects(() => b.speakerVolumeUp());
+
+    assert.ok(b.getState().commandError, 'der Fehler muss sichtbar werden');
+    assert.strictEqual(b.getState().pending, null);
+    assert.strictEqual(b.getState().link, 'online', 'die Verbindung bleibt bestehen');
+});
+
+// Ein Class-1-Beamer, bei dem versehentlich etwas freigeschaltet wurde, darf
+// nicht dazu führen, dass Netzstatus oder Bildquelle nicht mehr ankommen.
+test('scheitert die Standbild-Abfrage, läuft der Rest weiter', async () => {
+    const { uhr, api, b } = bauen({ power: 1, pjlinkClass: 2 }, ['freeze']);
+    api.getFreeze = async () => { throw new Error('Undefined command'); };
+    b.start();
+    await uhr.advance(1);
+
+    assert.strictEqual(b.getState().link, 'online');
+    assert.strictEqual(b.getState().power, 'on');
+    assert.strictEqual(b.getState().sourceCode, '31');
 });
