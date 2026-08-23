@@ -1,309 +1,342 @@
-// Einrichtungsassistent. Läuft einmal, wenn keine gültigen Einstellungen da sind.
+// Setup wizard. Runs once, when there are no valid settings.
+//
+// The CSS class names stay German: they belong to app.css, which is not part
+// of this translation pass.
 window.App = window.App || {};
 window.App.viewSetup = (function () {
     const ui = window.App.ui;
     const el = ui.el;
 
     let ctx = null;
-    let wurzel = null;
+    let root = null;
 
-    let schritt = 1;
-    let suchlauf = { laeuft: false, checked: 0, total: 0, devices: [], fertig: false };
-    let auswahl = null;      // { host, port, name }
-    let passwort = '';
-    let pruefText = '';
-    let pruefArt = 'info';
-    let entwuerfe = [];      // Bildquellen im Aufbau
+    let step = 1;
+    let scan = { running: false, checked: 0, total: 0, devices: [], done: false };
+    let selection = null;    // { host, port, name }
+    let password = '';
+    let checkMessage = '';
+    let checkLevel = 'info';
+    let draftSources = [];   // picture sources being built up
 
-    function neuZeichnen() { render(); }
+    function redraw() { render(); }
 
-    function schrittleiste() {
-        const punkte = [1, 2, 3, 4].map(function (n) {
-            let klasse = 'schritt';
-            if (n < schritt) klasse = 'schritt fertig';
-            else if (n === schritt) klasse = 'schritt jetzt';
-            return el('span', { class: klasse, text: n < schritt ? '✓' : String(n) });
+    // The language choice sits in the step bar and is therefore on every step:
+    // anyone facing the setup in the wrong language should be able to change it
+    // straight away, not only at the end.
+    function languageChoice() {
+        return el('span', { class: 'sprachwahl' }, [
+            ui.languageSelect({
+                chosen: ctx.store.getLanguage(),
+                onChange: function (choice) { window.App.setLanguage(choice); }
+            })
+        ]);
+    }
+
+    function stepBar() {
+        const dots = [1, 2, 3, 4].map(function (n) {
+            let cssClass = 'schritt';
+            if (n < step) cssClass = 'schritt fertig';
+            else if (n === step) cssClass = 'schritt jetzt';
+            return el('span', { class: cssClass, text: n < step ? '✓' : String(n) });
         });
-        return el('div', { class: 'schritte' }, punkte.concat([
-            el('span', { class: 'feld-lab', text: 'Einrichtung' })
+        return el('div', { class: 'schritte' }, dots.concat([
+            el('span', { class: 'feld-lab', text: i18next.t('setup.wizardLabel') }),
+            languageChoice()
         ]));
     }
 
-    // ---------- Schritt 1: finden ----------
+    // ---------- Step 1: find ----------
 
-    async function suchen() {
-        suchlauf = { laeuft: true, checked: 0, total: 0, devices: [], fertig: false };
-        neuZeichnen();
+    async function startScan() {
+        scan = { running: true, checked: 0, total: 0, devices: [], done: false };
+        redraw();
 
-        const ab = ctx.api.onScanProgress(function (p) {
-            suchlauf.checked = p.checked;
-            suchlauf.total = p.total;
-            suchlauf.devices = p.devices;
-            neuZeichnen();
+        const unsubscribe = ctx.api.onScanProgress(function (p) {
+            scan.checked = p.checked;
+            scan.total = p.total;
+            scan.devices = p.devices;
+            redraw();
         });
 
         try {
-            const erg = await ctx.api.scanNetwork();
-            suchlauf.devices = erg.devices;
-            ctx.log.add('Einrichtung: ' + erg.devices.length + ' Gerät(e) gefunden', 'info');
+            const result = await ctx.api.scanNetwork();
+            scan.devices = result.devices;
+            ctx.log.add('Setup: ' + result.devices.length + ' device(s) found', 'info');
         } catch (e) {
-            ctx.log.add('Einrichtung: Suche fehlgeschlagen — ' + e.message, 'fehler');
+            ctx.log.add('Setup: scan failed — ' + e.message, 'error');
         } finally {
-            ab();
-            suchlauf.laeuft = false;
-            suchlauf.fertig = true;
-            neuZeichnen();
+            unsubscribe();
+            scan.running = false;
+            scan.done = true;
+            redraw();
         }
     }
 
-    function selbstEingeben() {
-        auswahl = { host: '', port: 4352, name: null };
-        schritt = 2;
-        pruefText = '';
-        neuZeichnen();
+    function enterManually() {
+        selection = { host: '', port: 4352, name: null };
+        step = 2;
+        checkMessage = '';
+        redraw();
     }
 
-    function trefferliste() {
-        if (suchlauf.devices.length === 0) return null;
-        return el('div', { class: 'trefferliste' }, suchlauf.devices.map(function (d) {
+    function resultList() {
+        if (scan.devices.length === 0) return null;
+        return el('div', { class: 'trefferliste' }, scan.devices.map(function (d) {
             return el('div', { class: 'treffer' }, [
                 el('span', {}, [
-                    el('strong', { text: d.name || 'PJLink-Gerät' }),
+                    el('strong', { text: d.name || i18next.t('common.pjlinkDevice') }),
                     el('span', { class: 'treffer-host', text: '   ' + d.host })
                 ]),
                 el('button', {
                     class: 'knopf text',
-                    text: 'auswählen',
-                    onclick: function () { auswahl = d; schritt = 2; pruefText = ''; neuZeichnen(); }
+                    text: i18next.t('setup.select'),
+                    onclick: function () { selection = d; step = 2; checkMessage = ''; redraw(); }
                 })
             ]);
         }));
     }
 
-    function schritt1() {
-        if (suchlauf.laeuft) {
-            const anteil = suchlauf.total ? Math.round((suchlauf.checked / suchlauf.total) * 100) : 0;
-            const balken = el('div', { class: 'balken' }, [el('i')]);
-            balken.firstChild.style.width = anteil + '%';
+    function step1() {
+        if (scan.running) {
+            const percent = scan.total ? Math.round((scan.checked / scan.total) * 100) : 0;
+            const bar = el('div', { class: 'balken' }, [el('i')]);
+            bar.firstChild.style.width = percent + '%';
 
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: 'Suche läuft …' }),
-                el('div', { class: 'assistent-text', text: 'Das dauert bis zu einer halben Minute.' }),
-                balken,
-                el('div', { class: 'feld-lab', text: suchlauf.checked + ' von ' + suchlauf.total + ' Adressen geprüft · ' + suchlauf.devices.length + ' gefunden' }),
-                trefferliste()
+                el('div', { class: 'assistent-titel', text: i18next.t('common.scanRunning') }),
+                el('div', { class: 'assistent-text', text: i18next.t('setup.scanDuration') }),
+                bar,
+                el('div', {
+                    class: 'feld-lab',
+                    text: i18next.t('common.scanProgress', { checked: scan.checked, total: scan.total, found: scan.devices.length })
+                }),
+                resultList()
             ]);
         }
 
-        if (suchlauf.fertig && suchlauf.devices.length === 0) {
+        if (scan.done && scan.devices.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: 'Kein Beamer gefunden' }),
-                el('div', { class: 'assistent-text', text: 'Das hat meist einen dieser Gründe:' }),
+                el('div', { class: 'assistent-titel', text: i18next.t('setup.noneFoundTitle') }),
+                el('div', { class: 'assistent-text', text: i18next.t('setup.noneFoundIntro') }),
                 el('ul', { class: 'pruefliste' }, [
-                    el('li', { text: 'Der Beamer ist ganz aus. Ein ausgeschalteter Beamer schaltet meist auch seine Netzwerkkarte ab und ist dann für kein Programm auffindbar. Schalte ihn zum Einrichten mit der Fernbedienung ein.' }),
-                    el('li', { text: 'Damit er auch im ausgeschalteten Zustand erreichbar bleibt, muss im Beamer-Menü unter Netzwerk die Einstellung „Netzwerk-Standby" (teils „LAN im Standby" oder „Always On") eingeschaltet sein.' }),
-                    el('li', { text: 'Im Beamer-Menü ist PJLink nicht eingeschaltet.' }),
-                    el('li', { text: 'Beamer und dieser Rechner hängen in verschiedenen Netzwerken.' })
+                    el('li', { text: i18next.t('setup.noneFoundReasonOff') }),
+                    el('li', { text: i18next.t('setup.noneFoundReasonStandby') }),
+                    el('li', { text: i18next.t('setup.noneFoundReasonPjlink') }),
+                    el('li', { text: i18next.t('setup.noneFoundReasonNetwork') })
                 ]),
                 el('div', { class: 'knopfzeile' }, [
-                    el('button', { class: 'knopf haupt', onclick: suchen }, ['Noch einmal suchen']),
-                    el('button', { class: 'knopf text', onclick: selbstEingeben }, ['IP-Adresse selbst eingeben'])
+                    el('button', { class: 'knopf haupt', onclick: startScan }, [i18next.t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: enterManually }, [i18next.t('common.enterIpManually')])
                 ])
             ]);
         }
 
-        if (suchlauf.fertig) {
+        if (scan.done) {
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: suchlauf.devices.length === 1 ? 'Ein Gerät gefunden' : suchlauf.devices.length + ' Geräte gefunden' }),
-                el('div', { class: 'assistent-text', text: 'Wähle den Beamer aus, der gesteuert werden soll.' }),
-                trefferliste(),
+                // i18next picks found_one or found_other from `count` — the
+                // singular/plural branch that used to sit here is its job.
+                // A language with more plural forms than German or English only
+                // has to add found_few and so on to its locale file.
+                el('div', {
+                    class: 'assistent-titel',
+                    text: i18next.t('setup.found', { count: scan.devices.length })
+                }),
+                el('div', { class: 'assistent-text', text: i18next.t('setup.chooseDevice') }),
+                resultList(),
                 el('div', { class: 'knopfzeile' }, [
-                    el('button', { class: 'knopf', onclick: suchen }, ['Noch einmal suchen']),
-                    el('button', { class: 'knopf text', onclick: selbstEingeben }, ['IP-Adresse selbst eingeben'])
+                    el('button', { class: 'knopf', onclick: startScan }, [i18next.t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: enterManually }, [i18next.t('common.enterIpManually')])
                 ])
             ]);
         }
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: 'Wo steht der Beamer?' }),
-            el('div', { class: 'assistent-text', text: 'Die App sucht im Netzwerk nach Beamern. Der Beamer muss dafür eingeschaltet oder im Netzwerk-Standby sein.' }),
+            el('div', { class: 'assistent-titel', text: i18next.t('setup.whereTitle') }),
+            el('div', { class: 'assistent-text', text: i18next.t('setup.whereText') }),
             el('div', { class: 'knopfzeile' }, [
-                el('button', { class: 'knopf haupt', onclick: suchen }, ['Beamer suchen'])
+                el('button', { class: 'knopf haupt', onclick: startScan }, [i18next.t('setup.searchProjectors')])
             ]),
-            el('button', { class: 'knopf text', onclick: selbstEingeben }, ['IP-Adresse stattdessen selbst eingeben'])
+            el('button', { class: 'knopf text', onclick: enterManually }, [i18next.t('setup.enterIpInstead')])
         ]);
     }
 
-    // ---------- Schritt 2: prüfen ----------
+    // ---------- Step 2: check ----------
 
-    async function eingaengeLaden() {
+    async function loadInputs() {
         try {
-            const erg = await ctx.api.getAvailableInputs();
-            entwuerfe = erg.inputs.map(function (i) {
-                return { code: i.code, label: window.App.viewOperate.anschlussName(i.code), visible: true };
+            const result = await ctx.api.getAvailableInputs();
+            draftSources = result.inputs.map(function (i) {
+                return { code: i.code, label: window.App.viewOperate.connectorName(i.code), visible: true };
             });
-            ctx.log.add('Einrichtung: ' + entwuerfe.length + ' Eingänge gelesen', 'ok');
+            ctx.log.add('Setup: ' + draftSources.length + ' inputs read', 'ok');
         } catch (e) {
-            entwuerfe = [];
-            ctx.log.add('Einrichtung: Eingänge nicht lesbar — ' + e.message, 'fehler');
+            draftSources = [];
+            ctx.log.add('Setup: inputs not readable — ' + e.message, 'error');
         }
     }
 
-    function schritt2() {
-        const hostFeld = el('input', { class: 'eingabe', value: auswahl.host, type: 'text', placeholder: 'z. B. 192.168.1.100' });
-        const passFeld = el('input', { class: 'eingabe', value: passwort, type: 'password', placeholder: 'meistens leer' });
+    function step2() {
+        const hostField = el('input', { class: 'eingabe', value: selection.host, type: 'text', placeholder: i18next.t('common.hostPlaceholder') });
+        const passwordField = el('input', { class: 'eingabe', value: password, type: 'password', placeholder: i18next.t('common.passwordPlaceholder') });
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: auswahl.name ? auswahl.name + ' gefunden' : 'IP-Adresse eingeben' }),
-            el('div', { class: 'assistent-text', text: 'Falls im Beamer ein PJLink-Passwort eingerichtet ist, trag es hier ein — sonst einfach weiter.' }),
+            el('div', {
+                class: 'assistent-titel',
+                text: selection.name ? i18next.t('setup.deviceFound', { name: selection.name }) : i18next.t('setup.enterIpTitle')
+            }),
+            el('div', { class: 'assistent-text', text: i18next.t('setup.passwordHint') }),
             el('div', { class: 'felder' }, [
-                el('div', {}, [el('div', { class: 'feld-lab', text: 'IP-Adresse' }), hostFeld]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: 'Port' }), el('input', { class: 'eingabe', value: String(auswahl.port || 4352), type: 'number', disabled: true })]),
-                el('div', {}, [el('div', { class: 'feld-lab', text: 'Passwort' }), passFeld])
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('common.ipAddress') }), hostField]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('common.port') }), el('input', { class: 'eingabe', value: String(selection.port || 4352), type: 'number', disabled: true })]),
+                el('div', {}, [el('div', { class: 'feld-lab', text: i18next.t('common.password') }), passwordField])
             ]),
-            pruefText ? el('div', { class: 'knopfzeile' }, [
-                el('span', { class: 'verbindungsstand' }, [el('span', { class: 'punkt' + (pruefArt === 'ok' ? ' an' : '') }), pruefText])
+            checkMessage ? el('div', { class: 'knopfzeile' }, [
+                el('span', { class: 'verbindungsstand' }, [el('span', { class: 'punkt' + (checkLevel === 'ok' ? ' an' : '') }), checkMessage])
             ]) : null,
             el('div', { class: 'knopfzeile' }, [
                 el('button', {
                     class: 'knopf haupt',
                     onclick: async function () {
-                        auswahl.host = hostFeld.value.trim();
-                        passwort = passFeld.value.trim();
-                        if (!auswahl.host) {
-                            pruefText = 'Bitte zuerst eine IP-Adresse eintragen.';
-                            pruefArt = 'fehler';
-                            neuZeichnen();
+                        selection.host = hostField.value.trim();
+                        password = passwordField.value.trim();
+                        if (!selection.host) {
+                            checkMessage = i18next.t('setup.ipRequired');
+                            checkLevel = 'error';
+                            redraw();
                             return;
                         }
-                        pruefText = 'Verbinde …';
-                        pruefArt = 'info';
-                        neuZeichnen();
+                        checkMessage = i18next.t('common.connecting');
+                        checkLevel = 'info';
+                        redraw();
                         try {
-                            await ctx.api.connect({ host: auswahl.host, port: auswahl.port || 4352, password: passwort || null });
-                            ctx.store.setConnection({ host: auswahl.host, port: auswahl.port || 4352, password: passwort || null });
+                            await ctx.api.connect({ host: selection.host, port: selection.port || 4352, password: password || null });
+                            ctx.store.setConnection({ host: selection.host, port: selection.port || 4352, password: password || null });
                             await ctx.store.save();
-                            await eingaengeLaden();
-                            schritt = 3;
+                            await loadInputs();
+                            step = 3;
                         } catch (e) {
-                            pruefText = 'Keine Verbindung: ' + e.message;
-                            pruefArt = 'fehler';
+                            checkMessage = i18next.t('common.connectionFailed', { message: e.message });
+                            checkLevel = 'error';
                         }
-                        neuZeichnen();
+                        redraw();
                     }
-                }, ['Weiter']),
-                el('button', { class: 'knopf', onclick: function () { schritt = 1; pruefText = ''; neuZeichnen(); } }, ['Zurück zur Suche'])
+                }, [i18next.t('common.next')]),
+                el('button', { class: 'knopf', onclick: function () { step = 1; checkMessage = ''; redraw(); } }, [i18next.t('setup.backToSearch')])
             ])
         ]);
     }
 
-    // ---------- Schritt 3: benennen ----------
+    // ---------- Step 3: name ----------
 
-    async function quellenUebernehmen() {
-        ctx.store.setSources(entwuerfe);
+    async function applySources() {
+        ctx.store.setSources(draftSources);
         await ctx.store.save();
-        schritt = 4;
-        neuZeichnen();
+        step = 4;
+        redraw();
     }
 
-    function schritt3() {
-        const weiter = el('button', { class: 'knopf haupt', onclick: quellenUebernehmen }, ['Weiter']);
+    function step3() {
+        const nextButton = el('button', { class: 'knopf haupt', onclick: applySources }, [i18next.t('common.next')]);
 
-        if (entwuerfe.length === 0) {
+        if (draftSources.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'assistent-titel', text: 'Keine Eingänge gemeldet' }),
-                el('div', { class: 'assistent-text', text: 'Der Beamer hat seine Anschlüsse nicht verraten. Das lässt sich später auf der Technik-Seite nachholen — die Bedienung funktioniert auch so, nur ohne Auswahl der Bildquelle.' }),
-                el('div', { class: 'knopfzeile' }, [weiter])
+                el('div', { class: 'assistent-titel', text: i18next.t('setup.noInputsTitle') }),
+                el('div', { class: 'assistent-text', text: i18next.t('setup.noInputsText') }),
+                el('div', { class: 'knopfzeile' }, [nextButton])
             ]);
         }
 
-        const zeilen = entwuerfe.map(function (q, i) {
+        const rows = draftSources.map(function (q, i) {
             return el('div', { class: 'quellzeile' }, [
                 el('span'),
-                el('span', { class: 'quellcode', text: q.code + ' · ' + window.App.viewOperate.anschlussName(q.code) }),
+                el('span', { class: 'quellcode', text: q.code + ' · ' + window.App.viewOperate.connectorName(q.code) }),
                 el('input', {
                     class: 'eingabe',
                     value: q.label,
-                    onchange: function (e) { entwuerfe[i].label = e.target.value; }
+                    onchange: function (e) { draftSources[i].label = e.target.value; }
                 }),
                 el('span', { class: 'haken' }, [
                     el('input', {
                         type: 'checkbox',
                         checked: q.visible,
-                        onchange: function (e) { entwuerfe[i].visible = e.target.checked; }
+                        onchange: function (e) { draftSources[i].visible = e.target.checked; }
                     })
                 ])
             ]);
         });
 
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: 'Wie heißen die Anschlüsse bei euch?' }),
-            el('div', { class: 'assistent-text', text: 'Der Beamer meldet diese Eingänge. Gib ihnen Namen, die jeder versteht — und nimm den Haken weg bei allem, was ihr nie benutzt.' }),
+            el('div', { class: 'assistent-titel', text: i18next.t('setup.nameInputsTitle') }),
+            el('div', { class: 'assistent-text', text: i18next.t('setup.nameInputsText') }),
             el('div', { class: 'quellzeile kopf' }, [
                 el('span'),
-                el('span', { text: 'Eingang' }),
-                el('span', { text: 'Name' }),
-                el('span', { class: 'haken', text: 'Zeigen' })
+                el('span', { text: i18next.t('setup.inputColumn') }),
+                el('span', { text: i18next.t('setup.nameColumn') }),
+                el('span', { class: 'haken', text: i18next.t('setup.showColumn') })
             ])
-        ].concat(zeilen).concat([
-            el('div', { class: 'knopfzeile' }, [weiter])
+        ].concat(rows).concat([
+            el('div', { class: 'knopfzeile' }, [nextButton])
         ]));
     }
 
-    // ---------- Schritt 4: fertig ----------
+    // ---------- Step 4: done ----------
 
-    function schritt4() {
-        const sichtbar = ctx.store.get().sources.filter(function (s) { return s.visible; });
+    function step4() {
+        const visible = ctx.store.get().sources.filter(function (s) { return s.visible; });
+        const sourceText = visible.length
+            ? i18next.t('setup.doneSourceCount', { count: visible.length })
+            : i18next.t('setup.doneNoSources');
+
         return el('div', {}, [
-            el('div', { class: 'assistent-titel', text: 'Fertig' }),
-            el('div', { class: 'assistent-text', text: 'Die Bedienung zeigt ab jetzt ' + (sichtbar.length ? sichtbar.length + ' Bildquelle(n)' : 'keine Bildquellen') + ' und den Ein/Aus-Schalter. Alles Technische liegt hinter dem Zahnrad oben rechts.' }),
+            el('div', { class: 'assistent-titel', text: i18next.t('setup.doneTitle') }),
+            el('div', { class: 'assistent-text', text: i18next.t('setup.doneText', { sources: sourceText }) }),
             el('div', { class: 'knopfzeile' }, [
                 el('button', {
                     class: 'knopf haupt',
                     onclick: async function () {
                         ctx.store.markSetupComplete();
                         await ctx.store.save();
-                        ctx.beamer.start();
-                        ctx.beamer.refreshNow();
+                        ctx.projector.start();
+                        ctx.projector.refreshNow();
                         window.App.showView('operate');
                     }
-                }, ['Zur Bedienung'])
+                }, [i18next.t('setup.toOperate')])
             ])
         ]);
     }
 
     function render() {
-        if (!wurzel) wurzel = document.getElementById('ansicht-setup');
-        ui.clear(wurzel);
-        let inhalt;
-        if (schritt === 1) inhalt = schritt1();
-        else if (schritt === 2) inhalt = schritt2();
-        else if (schritt === 3) inhalt = schritt3();
-        else inhalt = schritt4();
-        wurzel.appendChild(el('div', { class: 'ansicht-innen' }, [schrittleiste(), inhalt]));
+        if (!root) root = document.getElementById('ansicht-setup');
+        ui.clear(root);
+        let content;
+        if (step === 1) content = step1();
+        else if (step === 2) content = step2();
+        else if (step === 3) content = step3();
+        else content = step4();
+        root.appendChild(el('div', { class: 'ansicht-innen' }, [stepBar(), content]));
     }
 
     return {
         init: function (c) {
             ctx = c;
-            // Wurde die Verbindung schon gespeichert, aber die Einrichtung nicht
-            // beendet, geht es beim Prüfen weiter statt wieder beim Suchen.
-            const verb = ctx.store.get().connection;
-            if (verb.host) {
-                auswahl = { host: verb.host, port: verb.port, name: null };
-                passwort = verb.password || '';
-                schritt = 2;
+            // If the connection was already saved but the setup was not
+            // finished, it carries on at the checking step instead of the search.
+            const connection = ctx.store.get().connection;
+            if (connection.host) {
+                selection = { host: connection.host, port: connection.port, name: null };
+                password = connection.password || '';
+                step = 2;
             }
         },
 
-        // Wird von der Technik-Seite gerufen, wenn jemand neu einrichten will.
-        neuBeginnen: function () {
-            schritt = 1;
-            suchlauf = { laeuft: false, checked: 0, total: 0, devices: [], fertig: false };
-            auswahl = null;
-            passwort = '';
-            pruefText = '';
-            entwuerfe = [];
+        // Called by the technical page when someone wants to set up again.
+        restart: function () {
+            step = 1;
+            scan = { running: false, checked: 0, total: 0, devices: [], done: false };
+            selection = null;
+            password = '';
+            checkMessage = '';
+            draftSources = [];
         },
 
         render: render

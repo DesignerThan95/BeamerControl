@@ -3,42 +3,42 @@ const assert = require('node:assert');
 const net = require('node:net');
 const PJLink = require('../index.js');
 
-// Ein sehr kleiner PJLink-Beamer zum Anfassen. Er meldet sich ohne
-// Passwortabfrage, merkt sich jede empfangene Zeile und antwortet darauf.
-// Damit lässt sich prüfen, was wirklich auf der Leitung steht — genau darum
-// geht es bei der Klasse im Header.
-function fakeBeamer(werte) {
-    const zeilen = [];
-    const antworten = Object.assign({
+// A very small PJLink projector you can touch. It announces itself without a
+// password prompt, remembers every line it receives and answers it. That makes
+// it possible to check what really goes onto the wire — which is exactly what
+// the class in the header is about.
+function fakeProjector(values) {
+    const lines = [];
+    const answers = Object.assign({
         POWR: '1', SNUM: 'SN-4711', SVER: 'FW 1.20', FREZ: '0',
         IRES: '1920x1080', RRES: '1920x1080', FILT: '1234',
-        RLMP: 'ET-LAV400', RFIL: 'ET-RFV400', INNM: 'HDMI vorne'
-    }, werte || {});
+        RLMP: 'ET-LAV400', RFIL: 'ET-RFV400', INNM: 'HDMI front'
+    }, values || {});
 
     const server = net.createServer(function (sock) {
         sock.write('PJLINK 0\r');
-        let puffer = '';
+        let buffer = '';
 
         sock.on('data', function (d) {
-            puffer += d.toString();
+            buffer += d.toString();
             let i;
-            while ((i = puffer.indexOf('\r')) !== -1) {
-                const zeile = puffer.slice(0, i);
-                puffer = puffer.slice(i + 1);
-                zeilen.push(zeile);
+            while ((i = buffer.indexOf('\r')) !== -1) {
+                const line = buffer.slice(0, i);
+                buffer = buffer.slice(i + 1);
+                lines.push(line);
 
-                const header = zeile.slice(0, 2);
-                const befehl = zeile.slice(2, 6);
-                const parameter = zeile.slice(7);
-                const wert = parameter.charAt(0) === '?' ? (antworten[befehl] || 'OK') : 'OK';
-                sock.write(header + befehl + '=' + wert + '\r');
+                const header = line.slice(0, 2);
+                const command = line.slice(2, 6);
+                const parameter = line.slice(7);
+                const value = parameter.charAt(0) === '?' ? (answers[command] || 'OK') : 'OK';
+                sock.write(header + command + '=' + value + '\r');
             }
         });
-        sock.on('error', function () { /* Verbindungsabbruch am Testende */ });
+        sock.on('error', function () { /* connection dropped at the end of the test */ });
     });
 
     return {
-        zeilen,
+        lines,
         async start() {
             await new Promise(function (r) { server.listen(0, '127.0.0.1', r); });
             return server.address().port;
@@ -47,147 +47,147 @@ function fakeBeamer(werte) {
     };
 }
 
-// Ruft eine Methode der Bibliothek als Promise auf.
-function rufen(beamer, methode) {
+// Calls a method of the library as a promise.
+function call(projector, method) {
     const rest = Array.prototype.slice.call(arguments, 2);
     return new Promise(function (resolve, reject) {
-        beamer[methode].apply(beamer, rest.concat([function (err, ergebnis) {
-            if (err) reject(err); else resolve(ergebnis);
+        projector[method].apply(projector, rest.concat([function (err, result) {
+            if (err) reject(err); else resolve(result);
         }]));
     });
 }
 
-async function mitBeamer(fn, werte) {
-    const fake = fakeBeamer(werte);
+async function withProjector(fn, values) {
+    const fake = fakeProjector(values);
     const port = await fake.start();
-    const beamer = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 4000 });
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 4000 });
     try {
-        await fn(beamer, fake);
+        await fn(projector, fake);
     } finally {
-        beamer.disconnect();
+        projector.disconnect();
         fake.stop();
     }
 }
 
-test('ein Class-1-Befehl geht unverändert mit %1 auf die Leitung', async () => {
-    await mitBeamer(async function (beamer, fake) {
-        const zustand = await rufen(beamer, 'getPowerState');
-        assert.strictEqual(zustand, 1);
-        assert.deepStrictEqual(fake.zeilen, ['%1POWR ?']);
+test('a Class 1 command goes onto the wire unchanged with %1', async () => {
+    await withProjector(async function (projector, fake) {
+        const state = await call(projector, 'getPowerState');
+        assert.strictEqual(state, 1);
+        assert.deepStrictEqual(fake.lines, ['%1POWR ?']);
     });
 });
 
-test('ein Class-2-Befehl geht mit %2 auf die Leitung', async () => {
-    await mitBeamer(async function (beamer, fake) {
-        await rufen(beamer, 'getSerialNumber');
-        assert.deepStrictEqual(fake.zeilen, ['%2SNUM ?']);
+test('a Class 2 command goes onto the wire with %2', async () => {
+    await withProjector(async function (projector, fake) {
+        await call(projector, 'getSerialNumber');
+        assert.deepStrictEqual(fake.lines, ['%2SNUM ?']);
     });
 });
 
-// Der Kern der Erweiterung: beide Klassen teilen sich eine Verbindung und
-// eine Warteschlange. Die Klasse hängt am einzelnen Befehl.
-test('Class 1 und Class 2 laufen gemischt über dieselbe Verbindung', async () => {
-    await mitBeamer(async function (beamer, fake) {
-        await rufen(beamer, 'getPowerState');
-        await rufen(beamer, 'getSerialNumber');
-        await rufen(beamer, 'getPowerState');
-        await rufen(beamer, 'getSoftwareVersion');
+// The heart of the extension: both classes share one connection and one queue.
+// The class belongs to the individual command.
+test('Class 1 and Class 2 run mixed over the same connection', async () => {
+    await withProjector(async function (projector, fake) {
+        await call(projector, 'getPowerState');
+        await call(projector, 'getSerialNumber');
+        await call(projector, 'getPowerState');
+        await call(projector, 'getSoftwareVersion');
 
-        assert.deepStrictEqual(fake.zeilen, [
+        assert.deepStrictEqual(fake.lines, [
             '%1POWR ?', '%2SNUM ?', '%1POWR ?', '%2SVER ?'
         ]);
     });
 });
 
-test('Seriennummer und Softwareversion kommen als Text an', async () => {
-    await mitBeamer(async function (beamer) {
-        assert.strictEqual(await rufen(beamer, 'getSerialNumber'), 'SN-4711');
-        assert.strictEqual(await rufen(beamer, 'getSoftwareVersion'), 'FW 1.20');
+test('serial number and software version arrive as text', async () => {
+    await withProjector(async function (projector) {
+        assert.strictEqual(await call(projector, 'getSerialNumber'), 'SN-4711');
+        assert.strictEqual(await call(projector, 'getSoftwareVersion'), 'FW 1.20');
     });
 });
 
-test('Standbild schalten und abfragen', async () => {
-    await mitBeamer(async function (beamer, fake) {
-        await rufen(beamer, 'setFreeze', true);
-        assert.strictEqual(fake.zeilen[0], '%2FREZ 1');
+test('switching freeze and querying it', async () => {
+    await withProjector(async function (projector, fake) {
+        await call(projector, 'setFreeze', true);
+        assert.strictEqual(fake.lines[0], '%2FREZ 1');
 
-        await rufen(beamer, 'setFreeze', false);
-        assert.strictEqual(fake.zeilen[1], '%2FREZ 0');
+        await call(projector, 'setFreeze', false);
+        assert.strictEqual(fake.lines[1], '%2FREZ 0');
 
-        assert.strictEqual(await rufen(beamer, 'getFreeze'), false);
-        assert.strictEqual(fake.zeilen[2], '%2FREZ ?');
+        assert.strictEqual(await call(projector, 'getFreeze'), false);
+        assert.strictEqual(fake.lines[2], '%2FREZ ?');
     }, { FREZ: '0' });
 });
 
-test('Lautstärke geht nur auf und ab', async () => {
-    await mitBeamer(async function (beamer, fake) {
-        await rufen(beamer, 'speakerVolumeUp');
-        await rufen(beamer, 'speakerVolumeDown');
-        await rufen(beamer, 'microphoneVolumeUp');
-        await rufen(beamer, 'microphoneVolumeDown');
+test('volume only goes up and down', async () => {
+    await withProjector(async function (projector, fake) {
+        await call(projector, 'speakerVolumeUp');
+        await call(projector, 'speakerVolumeDown');
+        await call(projector, 'microphoneVolumeUp');
+        await call(projector, 'microphoneVolumeDown');
 
-        assert.deepStrictEqual(fake.zeilen, [
+        assert.deepStrictEqual(fake.lines, [
             '%2SVOL 1', '%2SVOL 0', '%2MVOL 1', '%2MVOL 0'
         ]);
     });
 });
 
-test('der Name eines Eingangs wird mit dessen Kennung erfragt', async () => {
-    await mitBeamer(async function (beamer, fake) {
-        const name = await rufen(beamer, 'getInputName', '31');
-        assert.strictEqual(fake.zeilen[0], '%2INNM ?31');
-        assert.strictEqual(name, 'HDMI vorne');
+test('the name of an input is asked for with its code', async () => {
+    await withProjector(async function (projector, fake) {
+        const name = await call(projector, 'getInputName', '31');
+        assert.strictEqual(fake.lines[0], '%2INNM ?31');
+        assert.strictEqual(name, 'HDMI front');
     });
 });
 
-test('Auflösungen kommen zerlegt an', async () => {
-    await mitBeamer(async function (beamer) {
-        assert.deepStrictEqual(await rufen(beamer, 'getInputResolution'), {
+test('resolutions arrive split up', async () => {
+    await withProjector(async function (projector) {
+        assert.deepStrictEqual(await call(projector, 'getInputResolution'), {
             code: '1920x1080', width: 1920, height: 1080
         });
-        assert.deepStrictEqual(await rufen(beamer, 'getRecommendedResolution'), {
+        assert.deepStrictEqual(await call(projector, 'getRecommendedResolution'), {
             code: '1280x800', width: 1280, height: 800
         });
     }, { RRES: '1280x800' });
 });
 
-test('Wartungswerte kommen an', async () => {
-    await mitBeamer(async function (beamer) {
-        assert.strictEqual(await rufen(beamer, 'getFilterUsage'), 1234);
-        assert.deepStrictEqual(await rufen(beamer, 'getLampReplacements'), ['ET-LAV400']);
-        assert.deepStrictEqual(await rufen(beamer, 'getFilterReplacements'), ['ET-RFV400']);
+test('maintenance readings arrive', async () => {
+    await withProjector(async function (projector) {
+        assert.strictEqual(await call(projector, 'getFilterUsage'), 1234);
+        assert.deepStrictEqual(await call(projector, 'getLampReplacements'), ['ET-LAV400']);
+        assert.deepStrictEqual(await call(projector, 'getFilterReplacements'), ['ET-RFV400']);
     });
 });
 
-// Ein Class-1-Beamer antwortet auf Class-2-Befehle mit ERR1. Das muss als
-// normaler Fehler beim Aufrufer ankommen und darf die Verbindung nicht
-// zerstören — der nächste Class-1-Befehl muss weiter funktionieren.
-test('ERR1 auf einen Class-2-Befehl lässt die Verbindung heil', async () => {
-    await mitBeamer(async function (beamer) {
-        await assert.rejects(() => rufen(beamer, 'getSerialNumber'), /Undefined command/);
-        assert.strictEqual(await rufen(beamer, 'getPowerState'), 1);
+// A Class 1 projector answers Class 2 commands with ERR1. That has to reach
+// the caller as an ordinary error and must not destroy the connection — the
+// next Class 1 command has to keep working.
+test('ERR1 on a Class 2 command leaves the connection intact', async () => {
+    await withProjector(async function (projector) {
+        await assert.rejects(() => call(projector, 'getSerialNumber'), /Undefined command/);
+        assert.strictEqual(await call(projector, 'getPowerState'), 1);
     }, { SNUM: 'ERR1' });
 });
 
-// Ein echter Optoma antwortet auf %1CLSS ? mit "Class 1" statt "1"
-// (nachgemessen: PJLINK 0 / %1CLSS=Class 1). Das muss über die ganze Kette
-// ankommen — response.js zerlegt so eine Antwort am Leerzeichen.
-test('die Klassenangabe kommt auch mit Wort davor an', async () => {
-    await mitBeamer(async function (beamer, fake) {
-        const erg = await rufen(beamer, 'getClass');
-        assert.strictEqual(fake.zeilen[0], '%1CLSS ?');
-        assert.deepStrictEqual(erg, { cls: 1, raw: 'Class 1' });
+// A real Optoma answers %1CLSS ? with "Class 1" instead of "1" (measured:
+// PJLINK 0 / %1CLSS=Class 1). That has to survive the whole chain —
+// response.js splits such an answer on the space.
+test('the class figure arrives even with a word in front', async () => {
+    await withProjector(async function (projector, fake) {
+        const result = await call(projector, 'getClass');
+        assert.strictEqual(fake.lines[0], '%1CLSS ?');
+        assert.deepStrictEqual(result, { cls: 1, raw: 'Class 1' });
     }, { CLSS: 'Class 1' });
 });
 
-test('ein Class-2-Gerät wird auch mit Wort davor erkannt', async () => {
-    await mitBeamer(async function (beamer) {
-        assert.deepStrictEqual(await rufen(beamer, 'getClass'), { cls: 2, raw: 'Class 2' });
+test('a Class 2 device is recognized with a word in front too', async () => {
+    await withProjector(async function (projector) {
+        assert.deepStrictEqual(await call(projector, 'getClass'), { cls: 2, raw: 'Class 2' });
     }, { CLSS: 'Class 2' });
 });
 
-test('die spec-konforme Klassenangabe kommt unverändert an', async () => {
-    await mitBeamer(async function (beamer) {
-        assert.deepStrictEqual(await rufen(beamer, 'getClass'), { cls: 2, raw: '2' });
+test('the spec-conforming class figure arrives unchanged', async () => {
+    await withProjector(async function (projector) {
+        assert.deepStrictEqual(await call(projector, 'getClass'), { cls: 2, raw: '2' });
     }, { CLSS: '2' });
 });

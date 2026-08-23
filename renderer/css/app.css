@@ -200,6 +200,11 @@ input  { font: inherit; }
 .feld-lab { font-size: var(--fs-label); color: var(--text-dim); margin-bottom: 6px; }
 .eingabe { width: 100%; background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; color: var(--text); }
 
+/* Dropdown: erbt Rahmen und Farben von .eingabe, nimmt die 100% Breite von
+   dort aber wieder zurück — es soll nur so breit sein wie nötig. Steht
+   deshalb hinter .eingabe. */
+.auswahl { width: auto; min-width: 220px; max-width: 100%; cursor: pointer; }
+
 .knopfzeile { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
 .hinweis { margin-top: 14px; font-size: var(--fs-small); color: var(--text-dim); line-height: 1.6; max-width: 720px; }
 .verbindungsstand { margin-left: auto; font-size: var(--fs-small); display: flex; align-items: center; gap: 8px; }
@@ -231,6 +236,11 @@ input  { font: inherit; }
 .schritt { width: 24px; height: 24px; border-radius: 50%; background: var(--surface); border: var(--border-width) solid var(--border); color: var(--text-dim); display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-small); flex: none; }
 .schritt.jetzt { background: var(--accent); border-color: var(--accent); color: #fff; }
 .schritt.fertig { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-text); }
+
+/* Language choice in the step bar: set off to the right so it does not drag
+   the step dots along with it, and narrower than a full form field. */
+.sprachwahl { margin-left: auto; display: flex; align-items: center; }
+.sprachwahl .auswahl { min-width: 0; padding: 7px 10px; font-size: var(--fs-small); }
 
 .assistent-titel { font-size: var(--fs-hero); font-weight: 600; margin-bottom: 10px; }
 .assistent-text { color: var(--text-dim); line-height: 1.6; margin-bottom: 24px; max-width: 620px; }
