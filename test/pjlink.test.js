@@ -102,6 +102,29 @@ test('Class 1 and Class 2 run mixed through the same queue', async () => {
     });
 });
 
+// Spec 5.4: "The CONTROLLER must terminate the TCP connection as soon as the
+// required command transmission is completed."
+//
+// This is not pedantry. A connection held open across a pause is a connection
+// the projector may have thrown away in the meantime — the spec gives it 30
+// seconds and real devices are quicker. Writing into it costs no error, only
+// silence, and the command that went into it is reported as failed although
+// nobody ever heard it. A fresh connection per exchange cannot be stale.
+test('every exchange gets its own connection, and it is closed afterwards', async () => {
+    await withProjector(async function (projector, fake) {
+        await call(projector, 'getPowerState');
+        assert.strictEqual(fake.sockets.length, 1);
+
+        await call(projector, 'getPowerState');
+        await call(projector, 'getPowerState');
+        assert.strictEqual(fake.sockets.length, 3, 'one connection per exchange');
+
+        await wait(50);
+        const open = fake.sockets.filter(function (s) { return !s.destroyed; });
+        assert.strictEqual(open.length, 0, 'and none of them is left open');
+    });
+});
+
 test('serial number and software version arrive as text', async () => {
     await withProjector(async function (projector) {
         assert.strictEqual(await call(projector, 'getSerialNumber'), 'SN-4711');
