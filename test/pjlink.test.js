@@ -191,3 +191,74 @@ test('the spec-conforming class figure arrives unchanged', async () => {
         assert.deepStrictEqual(await call(projector, 'getClass'), { cls: 2, raw: '2' });
     }, { CLSS: '2' });
 });
+
+// ---------------------------------------------------------------------------
+// What happens when the projector cannot be reached
+// ---------------------------------------------------------------------------
+
+// A projector that accepts the connection and then says nothing. That is what
+// a device in standby looks like, and what the app runs into when the beamer
+// is not there.
+function silentProjector(onSocket) {
+    const sockets = [];
+    const server = net.createServer(function (sock) {
+        sockets.push(sock);
+        sock.on('error', function () { /* dropped at the end of the test */ });
+        if (onSocket) onSocket(sock);
+    });
+
+    return {
+        sockets,
+        async start() {
+            await new Promise(function (r) { server.listen(0, '127.0.0.1', r); });
+            return server.address().port;
+        },
+        stop() { server.close(); }
+    };
+}
+
+function wait(ms) {
+    return new Promise(function (r) { setTimeout(r, ms); });
+}
+
+// The reason for the error box in the running app: after the timeout the
+// library used to take its listeners off the socket but leave the socket
+// open. Whatever the socket said afterwards — a reset by the projector, or
+// the operating system giving up on an unreachable host a minute later —
+// arrived as an 'error' event with nobody listening. In Electron that is an
+// uncaught exception in the main process, and Electron shows it as a dialog.
+test('a connection dropped after the timeout does not throw', async () => {
+    const fake = silentProjector();
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 300 });
+
+    await assert.rejects(() => call(projector, 'getPowerState'), /Connection timeout/);
+
+    // The projector throws the connection away — a reset, not a polite close.
+    fake.sockets.forEach(function (sock) {
+        if (sock.resetAndDestroy) sock.resetAndDestroy();
+        else sock.destroy(new Error('ECONNRESET'));
+    });
+
+    // If the socket is still unguarded, the error lands here and node:test
+    // fails this test with an uncaught exception.
+    await wait(200);
+    fake.stop();
+});
+
+// After a timeout the object has to be usable again. It builds a fresh
+// connection for the next command instead of waiting for one that is gone.
+test('after a timeout the next command is sent again', async () => {
+    const fake = silentProjector();
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 300 });
+
+    await assert.rejects(() => call(projector, 'getPowerState'), /Connection timeout/);
+    const opened = fake.sockets.length;
+
+    await assert.rejects(() => call(projector, 'getPowerState'), /Connection timeout/);
+    assert.strictEqual(fake.sockets.length, opened + 1, 'the second command has to open its own connection');
+
+    projector.disconnect();
+    fake.stop();
+});

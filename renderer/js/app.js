@@ -186,6 +186,25 @@ window.App = window.App || {};
                 (language === i18next.resolvedLanguage ? '' : ' (showing ' + i18next.resolvedLanguage + ', its file did not load)'), 'info');
         });
 
+        // Errors nobody caught — in the main process and here in the window.
+        // They belong in the activity log, where the technical staff can find
+        // them, and nowhere else: the operating screen only shows what the
+        // person in front of it can do something about.
+        api.onMishap(function (mishap) {
+            // The main process is Node and has a console of its own that this
+            // window never sees. Its stack is written out here so that both
+            // ends of the app end up in the one developer console.
+            console.error('[main:' + mishap.where + ']', mishap.stack || mishap.message);
+            log.add('Internal mishap (' + mishap.where + '): ' + mishap.message, 'error');
+            if (activeView === 'tech') render();
+        });
+
+        window.addEventListener('unhandledrejection', function (e) {
+            const reason = e.reason;
+            console.error('[window:unhandledrejection]', (reason && reason.stack) || reason);
+            log.add('Internal mishap (window): ' + ((reason && reason.message) || reason), 'error');
+        });
+
         theme.init(function () { render(); });
 
         if (App.viewOperate) App.viewOperate.init(App.ctx);

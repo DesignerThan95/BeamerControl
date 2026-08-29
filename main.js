@@ -5,13 +5,21 @@ const fs = require('fs');
 const os = require('os');
 const net = require('net');
 const PJLink = require('./index'); // PJLink library
+const { createConnection } = require('./lib/connection');
 // The translations, read once at startup. They are needed here because the
 // renderer cannot read them itself and the preload script runs sandboxed.
 const { loadResources, normalizeLanguage } = require('./renderer/js/i18n/resources');
 const translationResources = loadResources();
 
 let mainWindow;
-let projector = null;
+
+// Without a timeout, an unreachable host hangs until the operating system
+// gives up — over a minute — and the interface stands still all the while.
+const CONNECT_TIMEOUT_MS = 6000;
+
+// Who holds the connection to the projector, and who may throw it away, is
+// lib/connection.js's business. The reasons are written down there.
+const connection = createConnection((settings) => new PJLink(settings));
 
 // Where the last settings are kept (in the user profile, not in the app folder,
 // so they survive an app update)
@@ -29,6 +37,40 @@ function loadSettingsFromDisk() {
 function saveSettingsToDisk(settings) {
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 }
+
+// ============ MISHAPS NOBODY CAUGHT ============
+//
+// Without a listener here, Electron shows an uncaught error in the main
+// process as a system dialog: an English stack trace in front of someone who
+// only wants to switch the projector on, in the middle of a service, and the
+// app is barely usable afterwards either.
+//
+// This app answers for its own errors. A mishap goes into the activity log
+// behind the gear icon and the operating screen carries on. Anything that
+// really concerns the user reaches them on the proper route anyway — as a
+// command that failed, or as "no contact with the projector".
+//
+// The price of this is that the app carries on after a fault it does not
+// understand. For a device that has to keep the picture on the wall, that is
+// the better bargain than a dialog nobody in the room can act on.
+// Two consoles, not one: this process is Node, the window is Chromium, and
+// neither sees the other's output. console.error here reaches the terminal the
+// app was started from — which in an installed app is nobody. So the mishap
+// takes the second route as well, over to the window: into the activity log
+// for the technical staff, and into the developer console with its stack.
+function reportMishap(where, error) {
+    const message = (error && error.message) || String(error);
+    const stack = (error && error.stack) || message;
+
+    console.error('[' + where + ']', stack);
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app-mishap', { where, message, stack });
+    }
+}
+
+process.on('uncaughtException', (error) => reportMishap('uncaughtException', error));
+process.on('unhandledRejection', (reason) => reportMishap('unhandledRejection', reason));
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -53,9 +95,7 @@ app.whenReady().then(createWindow);
 // projector, not a document program — a program that keeps running invisibly
 // in the dock confuses more than it helps.
 app.on('window-all-closed', () => {
-    if (projector) {
-        projector.disconnect();
-    }
+    connection.disconnect();
     app.quit();
 });
 
@@ -65,42 +105,43 @@ app.on('activate', () => {
     }
 });
 
-// Helper function for promise-based PJLink calls
-function promisifyPJLinkCall(method, ...args) {
+// Turns one of the library's callback methods into a promise. The connection
+// is passed in rather than read from somewhere: a command has to run on the
+// connection it was started on, even if another one has taken over since.
+function call(link, method, ...args) {
     return new Promise((resolve, reject) => {
-        const callback = (err, ...results) => {
+        link[method](...args, (err, ...results) => {
             if (err) {
                 reject(err);
             } else {
                 resolve(results.length <= 1 ? results[0] : results);
             }
-        };
-
-        method.call(projector, ...args, callback);
+        });
     });
 }
 
 // IPC handlers for the PJLink functions
 ipcMain.handle('connect', async (event, { host, port, password }) => {
     try {
-        // Without a timeout, an unreachable host hangs until the operating
-        // system gives up (over a minute) and the interface stands still.
-        projector = new PJLink({ host, port, password: password || null, timeout: 6000 });
+        return await connection.connect(
+            { host, port, password: password || null, timeout: CONNECT_TIMEOUT_MS },
+            async (link) => {
+                // The connection counts as made once the projector has
+                // answered something.
+                await call(link, 'getPowerState');
 
-        // Test connection
-        await promisifyPJLinkCall(projector.getPowerState.bind(projector));
+                const projectorClass = await determineClass(link);
 
-        const projectorClass = await determineClass();
-
-        return {
-            success: true,
-            message: 'Connected',
-            pjlinkClass: projectorClass.pjlinkClass,
-            pjlinkClassSource: projectorClass.pjlinkClassSource,
-            pjlinkClassDetail: projectorClass.pjlinkClassDetail
-        };
+                return {
+                    success: true,
+                    message: 'Connected',
+                    pjlinkClass: projectorClass.pjlinkClass,
+                    pjlinkClassSource: projectorClass.pjlinkClassSource,
+                    pjlinkClassDetail: projectorClass.pjlinkClassDetail
+                };
+            }
+        );
     } catch (error) {
-        projector = null;
         throw new Error(error.message || 'Connection failed');
     }
 });
@@ -114,11 +155,11 @@ ipcMain.handle('connect', async (event, { host, port, password }) => {
 // WHY Class 1 applies: "the projector answered Class 1" and "the query went
 // unanswered" lead to the same value but mean different things. Without that
 // distinction a timeout reads like a statement about the device.
-async function determineClass() {
+async function determineClass(link) {
     let response;
 
     try {
-        response = await promisifyPJLinkCall(projector.getClass.bind(projector));
+        response = await call(link, 'getClass');
     } catch (error) {
         return {
             pjlinkClass: 1,
@@ -149,10 +190,7 @@ async function determineClass() {
 
 ipcMain.handle('disconnect', async () => {
     try {
-        if (projector) {
-            projector.disconnect();
-            projector = null;
-        }
+        connection.disconnect();
         return { success: true, message: 'Disconnected' };
     } catch (error) {
         throw new Error(error.message || 'Disconnect failed');
@@ -160,40 +198,34 @@ ipcMain.handle('disconnect', async () => {
 });
 
 ipcMain.handle('power-on', async () => {
-    if (!projector) throw new Error('Not connected');
-    await promisifyPJLinkCall(projector.powerOn.bind(projector));
+    await call(connection.require(), 'powerOn');
     return { success: true };
 });
 
 ipcMain.handle('power-off', async () => {
-    if (!projector) throw new Error('Not connected');
-    await promisifyPJLinkCall(projector.powerOff.bind(projector));
+    await call(connection.require(), 'powerOff');
     return { success: true };
 });
 
 ipcMain.handle('get-power-state', async () => {
-    if (!projector) throw new Error('Not connected');
-    const state = await promisifyPJLinkCall(projector.getPowerState.bind(projector));
+    const state = await call(connection.require(), 'getPowerState');
     const states = { 0: 'Off', 1: 'On', 2: 'Cooling down', 3: 'Warming up' };
     return { state, description: states[state] || `Unknown (${state})` };
 });
 
 ipcMain.handle('set-input', async (event, inputCode) => {
-    if (!projector) throw new Error('Not connected');
     const source = parseInt(inputCode.charAt(0));
     const channel = parseInt(inputCode.charAt(1));
-    await promisifyPJLinkCall(projector.setInput.bind(projector), { source, channel });
+    await call(connection.require(), 'setInput', { source, channel });
     return { success: true };
 });
 
 ipcMain.handle('get-current-input', async () => {
-    if (!projector) throw new Error('Not connected');
-    return await promisifyPJLinkCall(projector.getInput.bind(projector));
+    return await call(connection.require(), 'getInput');
 });
 
 ipcMain.handle('get-available-inputs', async () => {
-    if (!projector) throw new Error('Not connected');
-    const inputs = await promisifyPJLinkCall(projector.getInputs.bind(projector));
+    const inputs = await call(connection.require(), 'getInputs');
     return { inputs };
 });
 
@@ -203,31 +235,30 @@ ipcMain.handle('get-available-inputs', async () => {
 // command". The combined value is then used as a fallback, with the picture
 // deciding: that is what people notice in the room.
 ipcMain.handle('set-mute', async (event, { video, audio }) => {
-    if (!projector) throw new Error('Not connected');
+    const link = connection.require();
 
     try {
-        await promisifyPJLinkCall(projector.setMuteRaw.bind(projector), video ? '11' : '10');
-        await promisifyPJLinkCall(projector.setMuteRaw.bind(projector), audio ? '21' : '20');
+        await call(link, 'setMuteRaw', video ? '11' : '10');
+        await call(link, 'setMuteRaw', audio ? '21' : '20');
         return { success: true, mode: 'separate' };
     } catch (error) {
-        await promisifyPJLinkCall(projector.setMuteRaw.bind(projector), video ? '31' : '30');
+        await call(link, 'setMuteRaw', video ? '31' : '30');
         return { success: true, mode: 'combined', reason: error.message };
     }
 });
 
 ipcMain.handle('get-mute-state', async () => {
-    if (!projector) throw new Error('Not connected');
-    return await promisifyPJLinkCall(projector.getMute.bind(projector));
+    return await call(connection.require(), 'getMute');
 });
 
 ipcMain.handle('get-device-info', async () => {
-    if (!projector) throw new Error('Not connected');
+    const link = connection.require();
 
     try {
         const [name, manufacturer, model] = await Promise.allSettled([
-            promisifyPJLinkCall(projector.getName.bind(projector)),
-            promisifyPJLinkCall(projector.getManufacturer.bind(projector)),
-            promisifyPJLinkCall(projector.getModel.bind(projector))
+            call(link, 'getName'),
+            call(link, 'getManufacturer'),
+            call(link, 'getModel')
         ]);
 
         return {
@@ -255,10 +286,10 @@ ipcMain.handle('get-device-info', async () => {
 const UNSUPPORTED_COMMAND = 'Undefined command';
 
 async function class2(fn) {
-    if (!projector) throw new Error('Not connected');
+    const link = connection.require();
 
     try {
-        return { supported: true, value: await fn() };
+        return { supported: true, value: await fn(link) };
     } catch (error) {
         if (error.message === UNSUPPORTED_COMMAND) {
             return { supported: false, reason: error.message };
@@ -272,30 +303,30 @@ async function class2(fn) {
 // level and there is no query for it either — that is what the spec says.
 
 ipcMain.handle('speaker-volume', async (event, direction) => {
-    return class2(() => promisifyPJLinkCall(projector.setSpeakerVolume.bind(projector), direction));
+    return class2((link) => call(link, 'setSpeakerVolume', direction));
 });
 
 ipcMain.handle('microphone-volume', async (event, direction) => {
-    return class2(() => promisifyPJLinkCall(projector.setMicrophoneVolume.bind(projector), direction));
+    return class2((link) => call(link, 'setMicrophoneVolume', direction));
 });
 
 // ---- Freeze (FREZ) ----
 
 ipcMain.handle('set-freeze', async (event, on) => {
-    return class2(() => promisifyPJLinkCall(projector.setFreeze.bind(projector), on === true));
+    return class2((link) => call(link, 'setFreeze', on === true));
 });
 
 ipcMain.handle('get-freeze', async () => {
-    return class2(() => promisifyPJLinkCall(projector.getFreeze.bind(projector)));
+    return class2((link) => call(link, 'getFreeze'));
 });
 
 // ---- Device data (SNUM / SVER) ----
 
 ipcMain.handle('get-device-details', async () => {
-    return class2(async () => {
+    return class2(async (link) => {
         const [serialNumber, softwareVersion] = await Promise.all([
-            promisifyPJLinkCall(projector.getSerialNumber.bind(projector)),
-            promisifyPJLinkCall(projector.getSoftwareVersion.bind(projector))
+            call(link, 'getSerialNumber'),
+            call(link, 'getSoftwareVersion')
         ]);
         return { serialNumber: serialNumber, softwareVersion: softwareVersion };
     });
@@ -305,16 +336,16 @@ ipcMain.handle('get-device-details', async () => {
 // The only Class 2 query command with a parameter: it asks per input.
 
 ipcMain.handle('get-input-name', async (event, code) => {
-    return class2(() => promisifyPJLinkCall(projector.getInputName.bind(projector), code));
+    return class2((link) => call(link, 'getInputName', code));
 });
 
 // ---- Resolution (IRES / RRES) ----
 
 ipcMain.handle('get-resolutions', async () => {
-    return class2(async () => {
+    return class2(async (link) => {
         const [incoming, recommended] = await Promise.all([
-            promisifyPJLinkCall(projector.getInputResolution.bind(projector)),
-            promisifyPJLinkCall(projector.getRecommendedResolution.bind(projector))
+            call(link, 'getInputResolution'),
+            call(link, 'getRecommendedResolution')
         ]);
         return { input: incoming, recommended: recommended };
     });
@@ -323,14 +354,14 @@ ipcMain.handle('get-resolutions', async () => {
 // ---- Maintenance (FILT / RLMP / RFIL) ----
 
 ipcMain.handle('get-maintenance', async () => {
-    if (!projector) throw new Error('Not connected');
+    const link = connection.require();
 
     // Each one guarded on its own: a laser projector has no replaceable lamp
     // and answers RLMP with ERR1, but it does know its filter hours.
     const [filterHours, lamps, filters] = await Promise.allSettled([
-        promisifyPJLinkCall(projector.getFilterUsage.bind(projector)),
-        promisifyPJLinkCall(projector.getLampReplacements.bind(projector)),
-        promisifyPJLinkCall(projector.getFilterReplacements.bind(projector))
+        call(link, 'getFilterUsage'),
+        call(link, 'getLampReplacements'),
+        call(link, 'getFilterReplacements')
     ]);
     const all = [filterHours, lamps, filters];
 
@@ -409,20 +440,36 @@ function checkPort(host, port, timeout) {
     });
 }
 
-// Tries best-effort to fetch the device name over PJLink (with a short timeout)
+// Tries best-effort to fetch the device name over PJLink (with a short timeout).
+//
+// The connection is let go of in every case, including the one where the name
+// never arrives. A device left hanging here would keep the projector's single
+// PJLink connection slot occupied — and the app itself would then not get in
+// any more.
 function getDeviceNameQuick(host, port) {
     return new Promise((resolve) => {
-        const timer = setTimeout(() => resolve(null), 2000);
-        try {
-            const testProjector = new PJLink(host, port, null);
-            testProjector.getName((err, result) => {
-                clearTimeout(timer);
-                testProjector.disconnect();
-                resolve(err ? null : result);
-            });
-        } catch (error) {
+        const NAME_TIMEOUT_MS = 2000;
+        let testProjector = null;
+        let done = false;
+
+        const finish = (name) => {
+            if (done) return;
+            done = true;
             clearTimeout(timer);
-            resolve(null);
+            if (testProjector) testProjector.disconnect();
+            resolve(name);
+        };
+
+        const timer = setTimeout(() => finish(null), NAME_TIMEOUT_MS);
+
+        try {
+            // With a timeout of its own: without one the library waits for
+            // ever, and the guard above would resolve while the connection
+            // quietly stayed open.
+            testProjector = new PJLink({ host, port, password: null, timeout: NAME_TIMEOUT_MS });
+            testProjector.getName((err, result) => finish(err ? null : result));
+        } catch (error) {
+            finish(null);
         }
     });
 }

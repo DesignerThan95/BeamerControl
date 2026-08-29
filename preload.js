@@ -70,6 +70,14 @@ contextBridge.exposeInMainWorld('pjlinkAPI', {
         return () => ipcRenderer.removeListener('scan-progress', handler);
     },
 
+    // Mishaps in the main process that nobody caught. They land in the
+    // activity log instead of in Electron's system dialog — see main.js.
+    onMishap: (cb) => {
+        const handler = (_event, data) => cb(data);
+        ipcRenderer.on('app-mishap', handler);
+        return () => ipcRenderer.removeListener('app-mishap', handler);
+    },
+
     // Language of the operating system
     getOsLocale: () => ipcRenderer.invoke('get-os-locale'),
 

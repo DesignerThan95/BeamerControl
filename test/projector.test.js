@@ -488,3 +488,35 @@ test('before the first connection the source is unknown', () => {
     assert.strictEqual(b.getState().pjlinkClass, null);
     assert.strictEqual(b.getState().pjlinkClassSource, null);
 });
+
+// The offline screen offers "try again now", and that button stays clickable
+// while the app is still waiting for the projector. Every press used to start
+// its own round — and because every round schedules the next one at the end,
+// each press left behind a poll loop of its own that ran for ever. Two presses
+// and the app was talking to the projector three times over.
+test('pressing retry while a round is running does not start a second loop', async () => {
+    const { clock, api, b } = build({ power: 1 });
+
+    // A connection attempt we hold open on purpose: that is the several
+    // seconds the app waits for a projector that is not answering.
+    let release;
+    const hanging = new Promise(function (r) { release = r; });
+    api.connect = async function () { await hanging; return { success: true, pjlinkClass: 1 }; };
+
+    b.start();
+    const firstRound = clock.advance(1); // the round starts and hangs on connecting
+    await new Promise(function (r) { setImmediate(r); });
+
+    b.refreshNow();
+    b.refreshNow();
+
+    release();
+    await firstRound;
+    await new Promise(function (r) { setImmediate(r); });
+
+    api.polls = 0;
+    await clock.advance(POLL_MS * 4);
+
+    assert.ok(api.polls <= 4, 'one loop asks at most once per beat, got ' + api.polls + ' asks in 4 beats');
+});
+

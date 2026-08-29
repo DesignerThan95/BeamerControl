@@ -26,6 +26,7 @@ window.App.api = (function () {
         saveSettings: (s) => p.saveSettings(s),
         scanNetwork: () => p.scanNetwork(),
         onScanProgress: (cb) => p.onScanProgress(cb),
+        onMishap: (cb) => p.onMishap(cb),
         getOsLocale: () => p.getOsLocale(),
         getOsTheme: () => p.getOsTheme(),
         onOsThemeChange: (cb) => p.onOsThemeChange(cb)

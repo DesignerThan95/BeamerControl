@@ -59,6 +59,8 @@
         let offlineAttempts = 0;
         let fastUntil = 0;
         let inTick = false;
+        // The round currently under way. There is at most one — see runNow().
+        let inFlight = null;
 
         function notify() {
             const copy = JSON.parse(JSON.stringify(state));
@@ -186,6 +188,30 @@
             scheduleNext();
         }
 
+        // The one door into a round. Whoever wants one — the beat, a command,
+        // the "try again" button — comes through here, and gets the round that
+        // is already under way rather than a second one of their own.
+        //
+        // This matters because every round schedules the next one at its end:
+        // a round started on the side does not merely run twice, it leaves
+        // behind a poll loop of its own that keeps running for ever. Two
+        // impatient presses on "try again" and the app was talking to the
+        // projector three times over — with three connections competing for
+        // the one that the main process keeps.
+        function runNow() {
+            if (inFlight) return inFlight;
+            if (timer !== null) {
+                cancel(timer);
+                timer = null;
+            }
+            inFlight = Promise.resolve(tick()).then(function () {
+                inFlight = null;
+            }, function () {
+                inFlight = null;
+            });
+            return inFlight;
+        }
+
         function scheduleNext() {
             if (!running) return;
             let delay = POLL_MS;
@@ -198,7 +224,7 @@
                 // up instead of lagging behind by as much as five seconds.
                 delay = FAST_POLL_MS;
             }
-            timer = schedule(tick, delay);
+            timer = schedule(runNow, delay);
         }
 
         async function send(kind, target, fn) {
@@ -208,7 +234,7 @@
             // running, its own scheduleNext() takes over the new beat.
             if (running && !inTick) {
                 if (timer !== null) cancel(timer);
-                timer = schedule(tick, FAST_POLL_MS);
+                timer = schedule(runNow, FAST_POLL_MS);
             }
             update({
                 pending: { kind: kind, target: target === undefined ? null : target, startedAt: now() },
@@ -245,7 +271,7 @@
                 running = true;
                 consecutiveFailures = 0;
                 offlineAttempts = 0;
-                timer = schedule(tick, 0);
+                timer = schedule(runNow, 0);
             },
 
             stop: function () {
@@ -264,8 +290,7 @@
             },
 
             refreshNow: function () {
-                if (timer !== null) cancel(timer);
-                return tick();
+                return runNow();
             },
 
             dismissError: function () {
