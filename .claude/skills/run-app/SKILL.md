@@ -53,7 +53,7 @@ Then **look at the screenshots** in `/tmp/beamer-shots/` (override with
 |---|---|
 | `launch` | start the fake projector and the app, wait for the first screen |
 | `launch fresh` | same, but wipes the settings so the setup wizard runs |
-| `beamer answers\|silent\|resets` | change how the fake projector behaves, live |
+| `beamer answers\|silent\|resets\|coupled` | change how the fake projector behaves, live |
 | `beamerstats` | connections the projector saw, and how many are still open |
 | `ss [name]` | screenshot → `$SCREENSHOT_DIR/<name>.png` |
 | `click-text <text>` | click the button containing that text (the usual way in) |
@@ -67,17 +67,41 @@ Then **look at the screenshots** in `/tmp/beamer-shots/` (override with
 | `type` / `press` | keyboard input |
 | `quit` | close app and projector, exit |
 
-### The fake projector's three behaviours
+### The fake projector's behaviours
 
-They are the three the app has to survive:
+They are the ones the app has to survive:
 
-- `answers` — a normal PJLink device
+- `answers` — a normal PJLink device. It remembers its mute state, so a command
+  really does come back changed.
+- `coupled` — answers just as politely, but switches picture and sound
+  together whatever it is told: `%1AVMT 21` is acknowledged with OK and then
+  mutes both. Many real devices do this and announce it nowhere. This is the
+  behaviour that used to produce "the projector did not confirm the command"
+  after muting the sound.
+- `swallows` — answers every query, but says nothing about a mute command. It
+  carries it out all the same. Real devices do this, and it used to produce
+  "the projector did not answer in time" for a command that had worked.
 - `silent` (the default) — accepts the connection and then says nothing. This
   is a projector in standby, and what an unreachable projector looks like to
   the app: every attempt runs into its 6 s timeout.
 - `resets` — throws the connection away mid-conversation. This used to make
   Electron show a native error dialog; `main-log` reports whether any dialog
   appeared.
+
+## Seeing the wire
+
+`PJLINK_TRACE=1` makes the PJLink library write every line it sends and
+receives, plus connects, closes and timeouts, to stderr — where `main-log`
+picks it up:
+
+```bash
+printf '%s\n' 'beamer swallows' 'launch' 'click-text Ton stumm' 'main-log' 'quit' \
+  | PJLINK_TRACE=1 node .claude/skills/run-app/driver.mjs
+```
+
+It is the only way to tell three things apart that all end up as the same
+error message: the projector said no, the projector said nothing at all, and
+the projector was never asked.
 
 ## Gotchas
 

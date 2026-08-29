@@ -9,6 +9,7 @@ const PJLink = require('../index.js');
 // the class in the header is about.
 function fakeProjector(values) {
     const lines = [];
+    const sockets = [];
     const answers = Object.assign({
         POWR: '1', SNUM: 'SN-4711', SVER: 'FW 1.20', FREZ: '0',
         IRES: '1920x1080', RRES: '1920x1080', FILT: '1234',
@@ -16,6 +17,7 @@ function fakeProjector(values) {
     }, values || {});
 
     const server = net.createServer(function (sock) {
+        sockets.push(sock);
         sock.write('PJLINK 0\r');
         let buffer = '';
 
@@ -39,6 +41,7 @@ function fakeProjector(values) {
 
     return {
         lines,
+        sockets,
         async start() {
             await new Promise(function (r) { server.listen(0, '127.0.0.1', r); });
             return server.address().port;
@@ -86,7 +89,7 @@ test('a Class 2 command goes onto the wire with %2', async () => {
 
 // The heart of the extension: both classes share one connection and one queue.
 // The class belongs to the individual command.
-test('Class 1 and Class 2 run mixed over the same connection', async () => {
+test('Class 1 and Class 2 run mixed through the same queue', async () => {
     await withProjector(async function (projector, fake) {
         await call(projector, 'getPowerState');
         await call(projector, 'getSerialNumber');
@@ -243,6 +246,67 @@ test('a connection dropped after the timeout does not throw', async () => {
     // If the socket is still unguarded, the error lands here and node:test
     // fails this test with an uncaught exception.
     await wait(200);
+    fake.stop();
+});
+
+// ---------------------------------------------------------------------------
+// Where a response ends
+// ---------------------------------------------------------------------------
+
+// TCP knows no lines. What the projector writes in one go can reach us in two
+// pieces, and what it writes in two can reach us as one. The spec (2.2) names
+// the carriage return as the terminator of a response — that, and nothing
+// else, is where a response ends.
+//
+// Taking each arrival for a whole response gets this wrong twice over: half a
+// response is read as a complete one (a power state that is neither on nor
+// off), and the other half then turns up with nothing waiting for it.
+test('a response split over two packets is still one response', async () => {
+    const fake = silentProjector(function (sock) {
+        sock.write('PJLINK 0\r');
+        sock.on('data', function () {
+            sock.write('%1POWR');
+            setTimeout(function () { sock.write('=1\r'); }, 30);
+        });
+    });
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 2000 });
+
+    const state = await call(projector, 'getPowerState');
+    assert.strictEqual(state, 1, 'the projector said it is on');
+
+    projector.disconnect();
+    fake.stop();
+});
+
+// And the half that never gets its second half. A projector that breaks off
+// mid-response leaves a fragment behind; the next connection starts a new
+// conversation, and the fragment must not be glued to the front of it.
+test('half a response does not carry over to the next connection', async () => {
+    let connections = 0;
+    const fake = silentProjector(function (sock) {
+        connections++;
+        sock.write('PJLINK 0\r');
+        if (connections === 1) {
+            // First connection: half an answer, then away.
+            sock.on('data', function () {
+                sock.write('%1POWR');
+                setTimeout(function () { sock.destroy(); }, 20);
+            });
+        } else {
+            sock.on('data', function () { sock.write('%1POWR=1\r'); });
+        }
+    });
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 2000 });
+
+    await assert.rejects(() => call(projector, 'getPowerState'));
+
+    // The fragment "%1POWR" is gone. If it were still in the buffer, the next
+    // answer would be read as "%1POWR%1POWR=1".
+    assert.strictEqual(await call(projector, 'getPowerState'), 1);
+
+    projector.disconnect();
     fake.stop();
 });
 
