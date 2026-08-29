@@ -52,6 +52,8 @@
     "running": "Beamer läuft",
     "hideVideo": "Bild ausblenden",
     "muteAudio": "Ton stumm",
+    "muteBoth": "Bild & Ton aus",
+    "muteCoupledHint": "Dieser Beamer schaltet Bild und Ton nur gemeinsam stumm. Deshalb steht hier ein Schalter statt zwei — er nimmt immer beides mit.",
     "freeze": "Standbild",
     "volumeHeading": "Lautstärke am Beamer",
     "audio": "Ton",

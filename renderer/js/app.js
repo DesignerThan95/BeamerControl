@@ -13,6 +13,7 @@ window.App = window.App || {};
 
     const theme = App.theme.createTheme(store);
     let muteHintLogged = false;
+    let muteSilenceLogged = false;
 
     // The activity log is meant for the technical staff and stays English —
     // including the names of the extra features in it. Otherwise an English
@@ -87,6 +88,14 @@ window.App = window.App || {};
                 if (result && result.mode === 'combined' && !muteHintLogged) {
                     muteHintLogged = true;
                     log.add('This projector can only mute picture and sound together — both switches therefore act as one.', 'info');
+                }
+                // A projector that carries the command out and says nothing
+                // about it. That is not a failure — the state it reports on the
+                // next beat decides. But it is worth knowing about: it explains
+                // why the switch takes a few seconds to catch up.
+                if (result && result.unanswered && !muteSilenceLogged) {
+                    muteSilenceLogged = true;
+                    log.add('The projector did not answer the mute command (' + result.reason + '). Whether it worked is decided by the state it reports afterwards, not by its answer.', 'info');
                 }
                 return result;
             },
@@ -221,7 +230,16 @@ window.App = window.App || {};
             showView(activeView === 'tech' ? 'operate' : 'tech');
         });
 
-        projector.onChange(function () {
+        projector.onChange(function (state) {
+            // A projector that couples picture and sound does not say so — it
+            // shows it, the first time a wish for one of the two comes back as
+            // both. That belongs in the activity log: it is the answer to "why
+            // did the picture go away when I muted the sound?".
+            if (state.muteCoupled && !muteHintLogged) {
+                muteHintLogged = true;
+                log.add('This projector switches picture and sound together — a command for one of them takes the other with it. The operating screen now offers one switch instead of two.', 'info');
+            }
+
             // Only the controls follow the projector. The technical page would
             // otherwise be redrawn mid-typing and the focus would be lost.
             if (activeView === 'operate') render();

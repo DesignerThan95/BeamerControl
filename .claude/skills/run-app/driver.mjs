@@ -24,8 +24,11 @@ const ELECTRON_BIN = process.platform === 'darwin'
 // ---------------------------------------------------------------------------
 // The fake projector
 // ---------------------------------------------------------------------------
-// Four behaviours, because they are the four the app has to survive:
-//   answers  — a normal PJLink device
+// The behaviours the app has to survive:
+//   answers  — a normal PJLink device, picture and sound switchable apart
+//   coupled  — answers just as politely, but switches picture and sound
+//              together whatever it is told. Plenty of real devices do this,
+//              and they announce it nowhere.
 //   silent   — accepts the connection and says nothing (standby). The app runs
 //              into its 6 s timeout on every attempt.
 //   resets   — throws the connection away mid-conversation. This is what used
@@ -36,10 +39,33 @@ let connectionCount = 0;
 const openSockets = new Set();
 
 const ANSWERS = {
-    POWR: '1', INPT: '31', AVMT: '30', INST: '31 11 21', CLSS: '1',
+    POWR: '1', INPT: '31', INST: '31 11 21', CLSS: '1',
     NAME: 'Fake Beamer', INF1: 'Testhersteller', INF2: 'Modell X',
     SNUM: 'SN-4711', SVER: 'FW 1.20', FREZ: '0'
 };
+
+// Mute is the one thing this fake really remembers, because the app waits for
+// it to come back changed. In "coupled" mode it behaves like the devices that
+// gave rise to all this: it accepts %1AVMT 21 with an OK and then switches
+// picture AND sound. Nothing in PJLink announces that — it only shows.
+let avmt = '30';
+
+function answerAVMT(param) {
+    if (param === '?') return avmt;
+    if (mode === 'coupled') {
+        avmt = param.endsWith('1') ? '31' : '30';
+    } else {
+        const on = param.endsWith('1');
+        const video = avmt === '31' || avmt === '11';
+        const audio = avmt === '31' || avmt === '21';
+        const next = { video: video, audio: audio };
+        if (param[0] === '1') next.video = on;
+        if (param[0] === '2') next.audio = on;
+        if (param[0] === '3') next.video = next.audio = on;
+        avmt = next.video && next.audio ? '31' : (next.video ? '11' : (next.audio ? '21' : '30'));
+    }
+    return 'OK';
+}
 
 const server = net.createServer((sock) => {
     connectionCount++;
@@ -57,7 +83,17 @@ const server = net.createServer((sock) => {
     sock.on('data', (d) => {
         for (const line of d.toString().split('\r').filter(Boolean)) {
             const command = line.slice(2, 6);
-            sock.write(line.slice(0, 2) + command + '=' + (ANSWERS[command] ?? 'OK') + '\r');
+            const param = line.slice(7);
+            const answer = command === 'AVMT'
+                ? answerAVMT(param)
+                : (ANSWERS[command] ?? 'OK');
+
+            // "swallows" carries the mute out and then says nothing about it.
+            // The command took effect; the app is left to find that out for
+            // itself. Queries it still answers, or nothing would work at all.
+            if (mode === 'swallows' && command === 'AVMT' && param !== '?') continue;
+
+            sock.write(line.slice(0, 2) + command + '=' + answer + '\r');
         }
     });
 });
@@ -124,8 +160,8 @@ const COMMANDS = {
 
     // Switch the projector's behaviour while the app is running.
     async beamer(what) {
-        if (!['answers', 'silent', 'resets'].includes(what)) {
-            return console.log('usage: beamer answers|silent|resets   (now: ' + mode + ')');
+        if (!['answers', 'silent', 'resets', 'coupled', 'swallows'].includes(what)) {
+            return console.log('usage: beamer answers|silent|resets|coupled|swallows   (now: ' + mode + ')');
         }
         mode = what;
         console.log('projector is now:', mode);

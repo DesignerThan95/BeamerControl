@@ -308,6 +308,68 @@ test('if the picture is wrong, the command does not count as done', async () => 
     assert.ok(b.getState().pending, 'the command carries on');
 });
 
+// The other way round, and this is the one people notice in the room: someone
+// mutes the sound, and on a projector that couples the two the picture goes
+// with it. That is the device's doing and cannot be undone from here — but it
+// must not additionally produce "the projector did not confirm the command".
+test('if the projector couples picture and sound, muting the sound counts as done too', async () => {
+    const { clock, api, b } = build({ power: 1 });
+    b.start();
+    await clock.advance(1);
+
+    await b.setMute({ video: false, audio: true });
+    api.state.mute = { video: true, audio: true };
+    await clock.advance(POLL_MS);
+
+    assert.strictEqual(b.getState().pending, null, 'no command running forever');
+    assert.strictEqual(b.getState().commandError, null, 'and no error message');
+});
+
+// Whether the projector couples them is not something it says — it is
+// something it does. A wish for one of the two that comes back as both is the
+// only evidence there is, and the operating screen needs it: only then can it
+// stop offering two switches that are really one.
+test('the coupling is noticed once the projector has shown it', async () => {
+    const { clock, api, b } = build({ power: 1 });
+    b.start();
+    await clock.advance(1);
+    assert.strictEqual(b.getState().muteCoupled, false, 'nothing is assumed beforehand');
+
+    await b.setMute({ video: false, audio: true });
+    api.state.mute = { video: true, audio: true };
+    await clock.advance(POLL_MS);
+
+    assert.strictEqual(b.getState().muteCoupled, true);
+});
+
+test('a projector that keeps picture and sound apart is not taken for a coupled one', async () => {
+    const { clock, api, b } = build({ power: 1 });
+    b.start();
+    await clock.advance(1);
+
+    await b.setMute({ video: false, audio: true });
+    api.state.mute = { video: false, audio: true };
+    await clock.advance(POLL_MS);
+
+    assert.strictEqual(b.getState().muteCoupled, false);
+    assert.strictEqual(b.getState().pending, null);
+});
+
+// The mirror image of "if the picture is wrong": the sound was the half the
+// user moved, so it is the half that has to be right. A projector that reports
+// both switched off has not carried out the command, coupled or not.
+test('if the sound is wrong, the command does not count as done', async () => {
+    const { clock, api, b } = build({ power: 1 });
+    b.start();
+    await clock.advance(1);
+
+    await b.setMute({ video: false, audio: true });
+    api.state.mute = { video: false, audio: false };
+    await clock.advance(POLL_MS);
+
+    assert.ok(b.getState().pending, 'the command carries on');
+});
+
 test('onChange reports every state change', async () => {
     const { clock, api, b } = build({ power: 0 });
     let count = 0;

@@ -101,10 +101,19 @@ window.App.viewOperate = (function () {
             }, [showsSpinner ? spinner() : icon + ' ', label]);
         }
 
-        const chips = [
-            chip(i18next.t('operate.hideVideo'), '🚫', state.mute.video, { video: !state.mute.video, audio: state.mute.audio }),
-            chip(i18next.t('operate.muteAudio'), '🔇', state.mute.audio, { video: state.mute.video, audio: !state.mute.audio })
-        ];
+        // Two switches only as long as the projector really has two. One that
+        // couples picture and sound has shown that by now — then a single
+        // switch is the honest control: whoever presses it knows the picture
+        // goes with it, instead of finding a black screen after muting.
+        const chips = state.muteCoupled
+            ? [(function () {
+                const on = state.mute.video || state.mute.audio;
+                return chip(i18next.t('operate.muteBoth'), '🔇', on, { video: !on, audio: !on });
+            })()]
+            : [
+                chip(i18next.t('operate.hideVideo'), '🚫', state.mute.video, { video: !state.mute.video, audio: state.mute.audio }),
+                chip(i18next.t('operate.muteAudio'), '🔇', state.mute.audio, { video: state.mute.video, audio: !state.mute.audio })
+            ];
 
         // Freeze — unlike volume — does have a query and therefore runs through
         // the same confirmation route as muting.
@@ -327,14 +336,28 @@ window.App.viewOperate = (function () {
                     disabled: isBusy(state),
                     onclick: function () {
                         run(function () {
-                            return ctx.projector.setMute({ video: false, audio: state.mute.audio });
+                            // On a coupled projector the sound comes back with
+                            // the picture whether we ask for it or not. Then
+                            // that is what gets asked for — a wish the device
+                            // cannot grant is not worth sending.
+                            return ctx.projector.setMute(state.muteCoupled
+                                ? { video: false, audio: false }
+                                : { video: false, audio: state.mute.audio });
                         }, 'Picture shown again');
                     }
                 }, [i18next.t('operate.showVideo')])
             ]));
         }
 
-        parts.push(statusRow(state), sourceSection(state));
+        parts.push(statusRow(state));
+
+        // Why there is one switch here and not two. Stands quietly under the
+        // row, not as a banner — it is not a fault, it is what the device is.
+        if (state.muteCoupled) {
+            parts.push(el('div', { class: 'hinweis', text: i18next.t('operate.muteCoupledHint') }));
+        }
+
+        parts.push(sourceSection(state));
 
         const volume = volumeSection(state);
         if (volume) parts.push(volume);

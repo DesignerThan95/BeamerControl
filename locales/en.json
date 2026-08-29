@@ -52,6 +52,8 @@
     "running": "Projector is on",
     "hideVideo": "Hide picture",
     "muteAudio": "Mute sound",
+    "muteBoth": "Picture & sound off",
+    "muteCoupledHint": "This projector can only mute picture and sound together. That is why there is one switch here instead of two — it always takes both.",
     "freeze": "Freeze picture",
     "volumeHeading": "Volume on the projector",
     "audio": "Sound",

@@ -7,6 +7,7 @@ const net = require('net');
 const PJLink = require('./index'); // PJLink library
 const { createConnection } = require('./lib/connection');
 const { createScanner } = require('./lib/scanner');
+const mute = require('./lib/mute');
 // The translations, read once at startup. They are needed here because the
 // renderer cannot read them itself and the preload script runs sandboxed.
 const { loadResources, normalizeLanguage } = require('./renderer/js/i18n/resources');
@@ -230,20 +231,32 @@ ipcMain.handle('get-available-inputs', async () => {
     return { inputs };
 });
 
-// Picture and sound are switched separately first (AVMT 11/10 and 21/20).
-// Many projectors — plenty of Optomas among them — only know the combined
-// switch (AVMT 31/30) and answer the separate values with ERR1 "Undefined
-// command". The combined value is then used as a fallback, with the picture
-// deciding: that is what people notice in the room.
-ipcMain.handle('set-mute', async (event, { video, audio }) => {
+// One press, one command — which one is lib/mute.js's business, and the
+// reasons are written down there.
+//
+// Two things must not be confused here, because they look the same from the
+// outside and mean opposite things:
+//
+//   * The projector refuses the separate value (ERR1/ERR2). Then it only knows
+//     the combined switch, and the combined value is worth trying.
+//   * The projector does not answer at all. Then nobody knows whether it heard
+//     the command. Sending it a different mute value on top is guesswork — and
+//     the way a command meant for the sound blanks the screen. The silence is
+//     reported instead, and whether it worked is decided by what the projector
+//     reports about itself afterwards.
+ipcMain.handle('set-mute', async (event, { video, audio, only }) => {
     const link = connection.require();
+    const wish = { video, audio, only: only || null };
 
     try {
-        await call(link, 'setMuteRaw', video ? '11' : '10');
-        await call(link, 'setMuteRaw', audio ? '21' : '20');
+        await call(link, 'setMuteRaw', mute.avmtCodeFor(wish));
         return { success: true, mode: 'separate' };
     } catch (error) {
-        await call(link, 'setMuteRaw', video ? '31' : '30');
+        if (!mute.meansTheDeviceCannot(error.message)) {
+            return { success: true, unanswered: true, reason: error.message };
+        }
+
+        await call(link, 'setMuteRaw', mute.combinedCodeFor(wish));
         return { success: true, mode: 'combined', reason: error.message };
     }
 });

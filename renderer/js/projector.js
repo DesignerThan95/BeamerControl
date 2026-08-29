@@ -39,6 +39,11 @@
             sourceCode: null,
             sourceName: null,
             mute: { video: false, audio: false },
+            // Whether this projector switches picture and sound together. Not
+            // something a device reports — something it does: a wish for one of
+            // the two that comes back as both. Until it has shown that, the two
+            // count as separate, which is what the standard promises.
+            muteCoupled: false,
             // What the projector reports about its PJLink level when connecting.
             // null means: not asked yet.
             pjlinkClass: null,
@@ -90,12 +95,31 @@
             if (p.kind === 'mute') {
                 const target = p.target;
                 if (next.mute.video === target.video && next.mute.audio === target.audio) return true;
+
                 // Many projectors can only mute picture and sound together.
-                // Then what counts is that the picture is right — otherwise the
-                // command would run forever.
-                return next.mute.video === next.mute.audio && next.mute.video === target.video;
+                // They answer the separate command with OK all the same and
+                // then switch both — so the wished-for state can never be
+                // reached and the command would run forever.
+                //
+                // What counts then is the half the user actually moved: whoever
+                // pressed "mute the sound" wanted the sound off, and got the
+                // picture with it. The other half follows the device, not the
+                // wish. Without this distinction a projector reporting "nothing
+                // muted" would pass as well — and a command that did nothing
+                // would count as carried out.
+                if (next.mute.video !== next.mute.audio) return false;
+                const moved = p.moved || 'video';
+                return next.mute[moved] === target[moved];
             }
             return false;
+        }
+
+        // Has this answer shown that the projector couples picture and sound?
+        // Only a wish for one of the two that comes back as both says so.
+        function showsCoupling(pending, next) {
+            if (!pending || pending.kind !== 'mute') return false;
+            if (pending.target.video === pending.target.audio) return false;
+            return next.mute.video === next.mute.audio;
         }
 
         async function poll() {
@@ -176,6 +200,9 @@
                     if (isCommandFulfilled(next)) {
                         patch.pending = null;
                         patch.commandError = null;
+                        // Once shown, it stays shown: the operating screen
+                        // stops offering two switches that are really one.
+                        if (showsCoupling(state.pending, next)) patch.muteCoupled = true;
                     } else if (now() - state.pending.startedAt >= COMMAND_TIMEOUT_MS) {
                         patch.pending = null;
                         patch.commandError = 'command-not-confirmed';
@@ -236,7 +263,7 @@
             timer = schedule(runNow, delay);
         }
 
-        async function send(kind, target, fn) {
+        async function send(kind, target, fn, extra) {
             fastUntil = now() + FAST_WINDOW_MS;
             // Reschedule right away, otherwise the fast polling only kicks in
             // after the five-second beat already under way. If a round is
@@ -246,7 +273,10 @@
                 timer = schedule(runNow, FAST_POLL_MS);
             }
             update({
-                pending: { kind: kind, target: target === undefined ? null : target, startedAt: now() },
+                pending: Object.assign(
+                    { kind: kind, target: target === undefined ? null : target, startedAt: now() },
+                    extra || {}
+                ),
                 commandError: null
             });
             try {
@@ -320,7 +350,19 @@
 
             setMute: function (m) {
                 const target = { video: m.video === true, audio: m.audio === true };
-                return send('mute', target, function () { return api.setMute(target); });
+                // Which of the two the user actually moved. On a projector that
+                // couples them, that is the half the answer has to match — see
+                // isCommandFulfilled. If both move at once the picture decides:
+                // that is what people in the room notice.
+                let moved = null;
+                if (target.video !== state.mute.video) moved = 'video';
+                else if (target.audio !== state.mute.audio) moved = 'audio';
+
+                // The half that moved goes along: only that one gets a command.
+                // Whoever mutes the sound has said nothing about the picture.
+                const wish = { video: target.video, audio: target.audio, only: moved };
+
+                return send('mute', target, function () { return api.setMute(wish); }, { moved: moved });
             },
 
             // Freeze does have a query and therefore runs through the normal
