@@ -19,7 +19,10 @@
     "scanRunning": "Suche läuft …",
     "scanProgress": "{{checked}} von {{total}} Adressen geprüft · {{found}} gefunden",
     "searchAgain": "Noch einmal suchen",
-    "enterIpManually": "IP-Adresse selbst eingeben"
+    "enterIpManually": "IP-Adresse selbst eingeben",
+    "noNetworkTitle": "Dieser Rechner ist in keinem Netzwerk",
+    "noNetworkText": "Es wurde gar nicht erst gesucht: Dieser Rechner hat keine Netzwerkverbindung. Zum Suchen muss er im selben Netzwerk hängen wie der Beamer — per Kabel oder WLAN.",
+    "noNetworkHint": "Prüfe die Netzwerkverbindung und suche dann noch einmal."
   },
   "operate": {
     "connector": {

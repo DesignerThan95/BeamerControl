@@ -11,7 +11,7 @@ window.App.viewSetup = (function () {
     let root = null;
 
     let step = 1;
-    let scan = { running: false, checked: 0, total: 0, devices: [], done: false };
+    let scan = { running: false, checked: 0, total: 0, devices: [], done: false, problem: null };
     let selection = null;    // { host, port, name }
     let password = '';
     let checkMessage = '';
@@ -48,7 +48,7 @@ window.App.viewSetup = (function () {
     // ---------- Step 1: find ----------
 
     async function startScan() {
-        scan = { running: true, checked: 0, total: 0, devices: [], done: false };
+        scan = { running: true, checked: 0, total: 0, devices: [], done: false, problem: null };
         redraw();
 
         const unsubscribe = ctx.api.onScanProgress(function (p) {
@@ -61,7 +61,9 @@ window.App.viewSetup = (function () {
         try {
             const result = await ctx.api.scanNetwork();
             scan.devices = result.devices;
-            ctx.log.add('Setup: ' + result.devices.length + ' device(s) found', 'info');
+            scan.problem = result.problem;
+            const line = window.App.scanReport.scanLogLine(result);
+            ctx.log.add('Setup: ' + line.text, line.level);
         } catch (e) {
             ctx.log.add('Setup: scan failed — ' + e.message, 'error');
         } finally {
@@ -111,6 +113,22 @@ window.App.viewSetup = (function () {
                     text: i18next.t('common.scanProgress', { checked: scan.checked, total: scan.total, found: scan.devices.length })
                 }),
                 resultList()
+            ]);
+        }
+
+        // A search that could not even start gets its own screen. It used to
+        // land in "no projector found" below, and sent whoever read it looking
+        // for a projector fault that was not there — the projector was never
+        // asked, because this computer was on no network.
+        if (scan.done && scan.problem === 'no-network') {
+            return el('div', {}, [
+                el('div', { class: 'assistent-titel', text: i18next.t('common.noNetworkTitle') }),
+                el('div', { class: 'assistent-text', text: i18next.t('common.noNetworkText') }),
+                el('div', { class: 'assistent-text', text: i18next.t('common.noNetworkHint') }),
+                el('div', { class: 'knopfzeile' }, [
+                    el('button', { class: 'knopf haupt', onclick: startScan }, [i18next.t('common.searchAgain')]),
+                    el('button', { class: 'knopf text', onclick: enterManually }, [i18next.t('common.enterIpManually')])
+                ])
             ]);
         }
 
@@ -332,7 +350,7 @@ window.App.viewSetup = (function () {
         // Called by the technical page when someone wants to set up again.
         restart: function () {
             step = 1;
-            scan = { running: false, checked: 0, total: 0, devices: [], done: false };
+            scan = { running: false, checked: 0, total: 0, devices: [], done: false, problem: null };
             selection = null;
             password = '';
             checkMessage = '';

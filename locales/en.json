@@ -19,7 +19,10 @@
     "scanRunning": "Searching …",
     "scanProgress": "{{checked}} of {{total}} addresses checked · {{found}} found",
     "searchAgain": "Search again",
-    "enterIpManually": "Enter the IP address yourself"
+    "enterIpManually": "Enter the IP address yourself",
+    "noNetworkTitle": "This computer is on no network",
+    "noNetworkText": "No search was made at all: this computer has no network connection. To search, it has to be on the same network as the projector — by cable or Wi-Fi.",
+    "noNetworkHint": "Check the network connection, then search again."
   },
   "operate": {
     "connector": {

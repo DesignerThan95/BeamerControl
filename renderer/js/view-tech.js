@@ -33,7 +33,7 @@ window.App.viewTech = (function () {
     const LOG_CSS_CLASS = { ok: 'ok', info: 'info', error: 'fehler' };
 
     // For this view only: results and progress of the network scan.
-    let scan = { running: false, checked: 0, total: 0, devices: [] };
+    let scan = { running: false, checked: 0, total: 0, devices: [], problem: null };
     let connectionMessage = '';
     let connectionLevel = 'info';
     // Class 2 values that were fetched. They are not saved and do not refresh
@@ -120,6 +120,12 @@ window.App.viewTech = (function () {
             }));
         }
 
+        // Same reason as in the setup wizard: a search that never ran must not
+        // read like a search that came back empty.
+        if (scan.problem === 'no-network') {
+            children.push(el('p', { class: 'hinweis', text: i18next.t('common.noNetworkText') }));
+        }
+
         if (scan.devices.length > 0) {
             children.push(el('div', { class: 'trefferliste' }, scan.devices.map(function (d) {
                 return el('div', { class: 'treffer' }, [
@@ -141,7 +147,7 @@ window.App.viewTech = (function () {
     }
 
     async function startScan() {
-        scan = { running: true, checked: 0, total: 0, devices: [] };
+        scan = { running: true, checked: 0, total: 0, devices: [], problem: null };
         redraw();
         ctx.log.add('Network scan started', 'info');
 
@@ -155,7 +161,9 @@ window.App.viewTech = (function () {
         try {
             const result = await ctx.api.scanNetwork();
             scan.devices = result.devices;
-            ctx.log.add(result.devices.length + ' device(s) found', result.devices.length ? 'ok' : 'info');
+            scan.problem = result.problem;
+            const line = window.App.scanReport.scanLogLine(result);
+            ctx.log.add(line.text, line.level);
         } catch (e) {
             ctx.log.add('Network scan failed: ' + e.message, 'error');
         } finally {

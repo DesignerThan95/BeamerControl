@@ -6,6 +6,7 @@ const os = require('os');
 const net = require('net');
 const PJLink = require('./index'); // PJLink library
 const { createConnection } = require('./lib/connection');
+const { createScanner } = require('./lib/scanner');
 // The translations, read once at startup. They are needed here because the
 // renderer cannot read them itself and the preload script runs sandboxed.
 const { loadResources, normalizeLanguage } = require('./renderer/js/i18n/resources');
@@ -420,6 +421,12 @@ function getLocalSubnets() {
 }
 
 // Checks quickly whether a host is listening on a port (without speaking PJLink)
+//
+// Says why, not just whether. The reason used to be thrown away here, and that
+// was the reason a failed search could not be told apart from an empty one: a
+// subnet where every address answers "EHOSTUNREACH" — a macOS that has not been
+// given permission for the local network, a cable that is not plugged in —
+// looked exactly like a subnet with no projector in it.
 function checkPort(host, port, timeout) {
     return new Promise((resolve) => {
         const socket = new net.Socket();
@@ -433,9 +440,9 @@ function checkPort(host, port, timeout) {
         };
 
         socket.setTimeout(timeout);
-        socket.once('connect', () => finish(true));
-        socket.once('timeout', () => finish(false));
-        socket.once('error', () => finish(false));
+        socket.once('connect', () => finish({ open: true }));
+        socket.once('timeout', () => finish({ open: false, code: 'TIMEOUT' }));
+        socket.once('error', (error) => finish({ open: false, code: error.code || 'ERROR' }));
         socket.connect(port, host);
     });
 }
@@ -474,51 +481,28 @@ function getDeviceNameQuick(host, port) {
     });
 }
 
+const PJLINK_PORT = 4352; // PJLink default port
+const SCAN_TIMEOUT_MS = 900; // per host — projectors in standby answer sluggishly
+
+// How the search is run is lib/scanner.js's business — the reasons are written
+// down there. This is only where it is given the three things it needs that do
+// touch the machine: the local subnets, a port check, and a device name.
+const scanner = createScanner({
+    subnets: getLocalSubnets,
+    checkPort: (host, port) => checkPort(host, port, SCAN_TIMEOUT_MS),
+    getName: getDeviceNameQuick
+});
+
 ipcMain.handle('scan-network', async (event) => {
-    const PORT = 4352; // PJLink default port
-    const TIMEOUT = 900; // ms per host — projectors in standby answer sluggishly
-    const subnets = getLocalSubnets();
-
-    if (subnets.length === 0) {
-        throw new Error('No active network found');
-    }
-
-    const total = subnets.length * 254;
-    let checked = 0;
-    const openHosts = [];
-    const devices = [];
-
-    // Reports progress to the window so the wizard can show a bar.
-    const report = () => {
-        if (!event.sender.isDestroyed()) {
-            event.sender.send('scan-progress', { checked, total, devices: devices.slice() });
+    return scanner.scan({
+        port: PJLINK_PORT,
+        // Reports progress to the window so the wizard can show a bar.
+        report: (progress) => {
+            if (!event.sender.isDestroyed()) {
+                event.sender.send('scan-progress', progress);
+            }
         }
-    };
-
-    for (const subnet of subnets) {
-        const checks = [];
-        for (let i = 1; i <= 254; i++) {
-            const host = `${subnet}.${i}`;
-            checks.push(
-                checkPort(host, PORT, TIMEOUT).then((open) => {
-                    checked++;
-                    if (open) openHosts.push(host);
-                    if (checked % 10 === 0) report();
-                })
-            );
-        }
-        await Promise.all(checks);
-    }
-    report();
-
-    // For every host found, fetch the device name best-effort
-    for (const host of openHosts) {
-        const name = await getDeviceNameQuick(host, PORT);
-        devices.push({ host, port: PORT, name: name || null });
-        report();
-    }
-
-    return { devices };
+    });
 });
 
 // ============ COLOUR SCHEME OF THE OPERATING SYSTEM ============
