@@ -7,6 +7,7 @@ const net = require('net');
 const PJLink = require('./index'); // PJLink library
 const { createConnection } = require('./lib/connection');
 const { createScanner } = require('./lib/scanner');
+const { createSearch } = require('./lib/search');
 const mute = require('./lib/mute');
 // The translations, read once at startup. They are needed here because the
 // renderer cannot read them itself and the preload script runs sandboxed.
@@ -434,6 +435,25 @@ function getLocalSubnets() {
     return [...new Set(subnets)];
 }
 
+// Where a shout reaches everybody on this network: the address with every host
+// bit set (spec 3.2 gives 192.168.0.255 as its example). Worked out from the
+// netmask rather than assumed to be a /24 — a church that runs a /16 exists.
+function getBroadcastAddresses() {
+    const interfaces = os.networkInterfaces();
+    const addresses = [];
+    for (const name in interfaces) {
+        for (const iface of interfaces[name]) {
+            if (iface.family !== 'IPv4' || iface.internal) continue;
+            if (iface.address.startsWith('169.254.')) continue;
+
+            const host = iface.address.split('.').map(Number);
+            const mask = (iface.netmask || '255.255.255.0').split('.').map(Number);
+            addresses.push(host.map((part, i) => (part & mask[i]) | (~mask[i] & 255)).join('.'));
+        }
+    }
+    return [...new Set(addresses)];
+}
+
 // Checks quickly whether a host is listening on a port (without speaking PJLink)
 //
 // Says why, not just whether. The reason used to be thrown away here, and that
@@ -507,8 +527,16 @@ const scanner = createScanner({
     getName: getDeviceNameQuick
 });
 
+// The Class 2 search shouts once and waits (spec 3.2); the reasons are in
+// lib/search.js. It knows nothing about Class 1 devices, so it runs alongside
+// the address-by-address search rather than instead of it.
+const search = createSearch({
+    broadcastAddresses: getBroadcastAddresses,
+    port: PJLINK_PORT
+});
+
 ipcMain.handle('scan-network', async (event) => {
-    return scanner.scan({
+    const sweeping = scanner.scan({
         port: PJLINK_PORT,
         // Reports progress to the window so the wizard can show a bar.
         report: (progress) => {
@@ -516,6 +544,26 @@ ipcMain.handle('scan-network', async (event) => {
                 event.sender.send('scan-progress', progress);
             }
         }
+    });
+
+    // Side by side: the shout costs one packet and the ten seconds the spec
+    // gives the devices to answer in, which the address sweep takes anyway.
+    const [swept, announced] = await Promise.all([sweeping, search.search()]);
+
+    // A device that answered the shout and was found by the sweep is one
+    // device. The sweep asked it for its name, so that one wins; what the
+    // shout adds is the MAC address, and devices on subnets the sweep does not
+    // walk at all.
+    const devices = [...swept.devices];
+    for (const device of announced.devices) {
+        const known = devices.find((d) => d.host === device.host);
+        if (known) known.mac = device.mac;
+        else devices.push(device);
+    }
+
+    return Object.assign({}, swept, {
+        devices,
+        failures: Object.assign({}, swept.failures, announced.failures)
     });
 });
 
