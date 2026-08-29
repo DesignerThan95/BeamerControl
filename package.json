@@ -8,6 +8,7 @@
     "test": "node --test test/*.test.js",
     "start": "electron .",
     "dev": "electron . --dev",
+    "icon": "electron tools/icon-bauen.js",
     "build": "electron-builder",
     "build-win": "electron-builder --win --x64",
     "build-portable": "electron-builder --win portable",

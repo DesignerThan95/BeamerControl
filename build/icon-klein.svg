@@ -1,0 +1,10 @@
+<!-- Das App-Icon für kleine Größen: bis einschließlich 64 Pixel.
+     Gegenüber icon.svg fehlen die Lüftungsschlitze und das Glanzlicht, das
+     Gehäuse ist etwas kräftiger und die Linse größer. Bei 16 Pixeln wären die
+     Schlitze nur noch Grau-Rauschen und die Linse zu klein, um blau zu wirken. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <rect x="10" y="10" width="80" height="80" rx="21" fill="#efe7da"/>
+  <rect x="16" y="32" width="68" height="36" rx="11" fill="#2b2926"/>
+  <circle cx="40" cy="50" r="15" fill="#2f6fb5"/>
+  <circle cx="40" cy="50" r="7" fill="#1c4f86"/>
+</svg>
