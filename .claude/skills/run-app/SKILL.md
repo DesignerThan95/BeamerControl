@@ -12,7 +12,8 @@ Drive it through the REPL at `.claude/skills/run-app/driver.mjs`. It starts a
 
 There is a real projector in a church on the same network. Do not connect to
 it, and do not run the app's network scan — it sweeps 254 addresses per subnet
-and will reach it. Everything here talks to 127.0.0.1 only. The driver's
+and additionally shouts `%2SRCH` at the broadcast address, so it reaches the
+projector twice over. Everything here talks to 127.0.0.1 only. The driver's
 settings file always points there; leave it that way.
 
 ## Run it
