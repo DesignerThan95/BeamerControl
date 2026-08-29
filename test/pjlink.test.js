@@ -400,3 +400,208 @@ test('a Class 1 input code is unchanged', async () => {
         assert.deepStrictEqual(fake.lines, ['%1INPT 32']);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Authentication (spec 5.1)
+// ---------------------------------------------------------------------------
+
+// A projector that wants a password. `level` is what it announces itself with:
+// 1 is the procedure of the old specification, and a device that also knows the
+// newer one answers the question "PJLINK 2" with a 16-byte random number.
+function passwordProjector(options) {
+    const opts = options || {};
+    const lines = [];
+    const connections = [];
+
+    const server = net.createServer(function (sock) {
+        const seen = { lines: [] };
+        connections.push(seen);
+        sock.on('error', function () { /* dropped at the end of the test */ });
+        sock.write('PJLINK 1 ' + (opts.random4 || '498e4a67') + '\r');
+
+        let buffer = '';
+        sock.on('data', function (d) {
+            buffer += d.toString();
+            let i;
+            while ((i = buffer.indexOf('\r')) !== -1) {
+                const line = buffer.slice(0, i);
+                buffer = buffer.slice(i + 1);
+                lines.push(line);
+                seen.lines.push(line);
+
+                if (line === 'PJLINK 2') {
+                    if (opts.sha256) sock.write('PJLINK 2 ' + opts.random16 + '\r');
+                    else if (opts.refuseProbe) sock.write('PJLINK ERRA\r');
+                    // otherwise: no answer at all, which the spec also allows
+                    continue;
+                }
+
+                // Everything else is a command, possibly with authentication
+                // data in front of it.
+                sock.write('%1POWR=1\r');
+            }
+        });
+    });
+
+    return {
+        lines,
+        connections,
+        async start() {
+            await new Promise(function (r) { server.listen(0, '127.0.0.1', r); });
+            return server.address().port;
+        },
+        stop() { server.close(); }
+    };
+}
+
+// The worked example from spec 5.1 of the old specification, digit for digit:
+// password "JBMIAProjectorLink", random number 498e4a67, MD5 digest
+// 5d8409bc1c3fa39749434aa3a5c38682 in front of the command. This is what a
+// projector checks against, so it is worth pinning to the character.
+test('the digest of the old procedure is the one from the specification', async () => {
+    const fake = passwordProjector({ refuseProbe: true });
+    const port = await fake.start();
+    const projector = new PJLink({
+        host: '127.0.0.1', port: port, password: 'JBMIAProjectorLink',
+        timeout: 4000, authTimeout: 2000
+    });
+
+    assert.strictEqual(await call(projector, 'getPowerState'), 1);
+    assert.deepStrictEqual(fake.connections[1].lines, ['5d8409bc1c3fa39749434aa3a5c38682%1POWR ?']);
+
+    projector.disconnect();
+    fake.stop();
+});
+
+// Spec 5.1 of version 2.10: the controller asks "PJLINK 2" for the security
+// level, the projector answers with a 16-byte random number, and the digest is
+// SHA256 over the XOR of the two random numbers plus the password.
+test('a projector that knows SHA256 is answered with SHA256', async () => {
+    const crypto = require('node:crypto');
+    const random16 = '3db25e10f69c47a85adb24cf361897e0';
+    const fake = passwordProjector({ sha256: true, random16: random16 });
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: 'JBMIAProjectorLink', timeout: 2000 });
+
+    assert.strictEqual(await call(projector, 'getPowerState'), 1);
+
+    assert.strictEqual(fake.lines[0], 'PJLINK 2', 'the security level is asked for first');
+
+    const sent = fake.lines[1];
+    const ours = sent.slice(0, 32);
+    const hash = sent.slice(32, 96);
+    assert.strictEqual(sent.slice(96), '%1POWR ?', 'the command follows the authentication data');
+    assert.match(ours, /^[0-9a-f]{32}$/, 'our own random number, 16 bytes as hex');
+
+    // The projector checks it exactly this way (5.1, 1-6).
+    const mixed = Buffer.from(ours, 'hex').map((b, i) => b ^ Buffer.from(random16, 'hex')[i]);
+    const expected = crypto.createHash('sha256')
+        .update(mixed.toString('hex') + 'JBMIAProjectorLink').digest('hex');
+    assert.strictEqual(hash, expected);
+
+    projector.disconnect();
+    fake.stop();
+});
+
+// Spec 5.1: "If the projector does not respond as specified in this document
+// (ERR response, incorrect response, no response, session disconnection, etc.)
+// ... after terminating the session, the connection will be made using the
+// protocol defined in the old specification."
+test('a projector that stays silent about the security level gets the old procedure', async () => {
+    const fake = passwordProjector(); // answers PJLINK 2 with nothing
+    const port = await fake.start();
+    const projector = new PJLink({
+        host: '127.0.0.1', port: port, password: 'JBMIAProjectorLink',
+        timeout: 4000, authTimeout: 200
+    });
+
+    assert.strictEqual(await call(projector, 'getPowerState'), 1);
+
+    assert.deepStrictEqual(fake.connections[0].lines, ['PJLINK 2'], 'the first session ends unanswered');
+    assert.deepStrictEqual(fake.connections[1].lines, ['5d8409bc1c3fa39749434aa3a5c38682%1POWR ?']);
+
+    projector.disconnect();
+    fake.stop();
+});
+
+test('a projector that refuses the question gets the old procedure', async () => {
+    const fake = passwordProjector({ refuseProbe: true });
+    const port = await fake.start();
+    const projector = new PJLink({
+        host: '127.0.0.1', port: port, password: 'JBMIAProjectorLink',
+        timeout: 4000, authTimeout: 2000
+    });
+
+    assert.strictEqual(await call(projector, 'getPowerState'), 1);
+    assert.deepStrictEqual(fake.connections[1].lines, ['5d8409bc1c3fa39749434aa3a5c38682%1POWR ?']);
+
+    projector.disconnect();
+    fake.stop();
+});
+
+// Asking costs a round trip. It is the projector's property, not the
+// command's, so it is asked once and then known.
+test('the security level is asked for once, not before every command', async () => {
+    const fake = passwordProjector({ refuseProbe: true });
+    const port = await fake.start();
+    const projector = new PJLink({
+        host: '127.0.0.1', port: port, password: 'JBMIAProjectorLink',
+        timeout: 4000, authTimeout: 2000
+    });
+
+    await call(projector, 'getPowerState');
+    await call(projector, 'getPowerState');
+
+    assert.strictEqual(fake.lines.filter(function (l) { return l === 'PJLINK 2'; }).length, 1);
+
+    projector.disconnect();
+    fake.stop();
+});
+
+// Without a password there is nothing to authenticate with, and asking about
+// the security level would only cost a round trip on every connection.
+test('without a password nothing is asked', async () => {
+    const fake = passwordProjector();
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 2000 });
+
+    await call(projector, 'getPowerState');
+    assert.strictEqual(fake.lines.indexOf('PJLINK 2'), -1);
+
+    projector.disconnect();
+    fake.stop();
+});
+
+// Spec 5.1: "Without passing through the authentication procedure, the
+// projector will not accept PJLINK commands." A command written before the
+// greeting has arrived carries no authentication data - the projector answers
+// it with ERRA, or with nothing.
+test('no command goes out before the greeting', async () => {
+    let greeted = null;
+    const fake = silentProjector(function (sock) {
+        sock.on('data', function (d) {
+            if (greeted === null) greeted = false; // something arrived too early
+            sock.write('%1POWR=1\r');
+        });
+        // The greeting takes its time — up to two seconds are allowed (spec 6).
+        setTimeout(function () {
+            if (greeted === null) greeted = true;
+            sock.write('PJLINK 0\r');
+        }, 120);
+    });
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 2000 });
+
+    // The second command arrives in the window that matters: the connection
+    // stands, the greeting has not come yet.
+    const first = call(projector, 'getPowerState');
+    await wait(50);
+    const second = call(projector, 'getPowerState');
+    await first;
+    await second;
+
+    assert.strictEqual(greeted, true, 'the greeting has to come first');
+
+    projector.disconnect();
+    fake.stop();
+});
