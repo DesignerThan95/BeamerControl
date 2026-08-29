@@ -605,3 +605,51 @@ test('no command goes out before the greeting', async () => {
     projector.disconnect();
     fake.stop();
 });
+
+// ---------------------------------------------------------------------------
+// What is not a response (spec 2.2)
+// ---------------------------------------------------------------------------
+
+// A response is header, class, four characters of command body, '=', parameter,
+// CR. The '=' is not decoration: it is what separates the command from its
+// answer, and its absence means the line is not a response to anything.
+//
+// Reading such a line as a response invents an answer that was never given.
+// The command it was meant for is better off being told that nothing usable
+// came back — the alternative is that it waits for the full timeout for a
+// second answer that has already been thrown away.
+test('a line without the separator is not taken for an answer', async () => {
+    const fake = silentProjector(function (sock) {
+        sock.write('PJLINK 0\r');
+        sock.on('data', function () { sock.write('%1POWR 1\r'); });
+    });
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 4000 });
+
+    await assert.rejects(() => call(projector, 'getPowerState'), /Malformed response/);
+
+    projector.disconnect();
+    fake.stop();
+});
+
+test('noise on the line is not taken for an answer either', async () => {
+    const fake = silentProjector(function (sock) {
+        sock.write('PJLINK 0\r');
+        sock.on('data', function () { sock.write('<html>404 not found</html>\r'); });
+    });
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 4000 });
+
+    await assert.rejects(() => call(projector, 'getPowerState'), /Malformed response/);
+
+    projector.disconnect();
+    fake.stop();
+});
+
+// The greeting is the one line that carries a space instead of an '=' and is
+// still perfectly in order (5.1, 5.2).
+test('the greeting is not mistaken for a malformed response', async () => {
+    await withProjector(async function (projector) {
+        assert.strictEqual(await call(projector, 'getPowerState'), 1);
+    });
+});

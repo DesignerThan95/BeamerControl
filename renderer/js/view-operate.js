@@ -55,6 +55,7 @@ window.App.viewOperate = (function () {
         'Command reply mismatch': 'operate.errors.replyMismatch',
         'Not connected': 'operate.errors.notConnected',
         'Connection timeout': 'operate.errors.connectionTimeout',
+        'Malformed response': 'operate.errors.malformedResponse',
         // The state machine sets no finished sentences, only these codes —
         // that is the only way its message can be translated here.
         'command-not-confirmed': 'operate.errors.notConfirmed',

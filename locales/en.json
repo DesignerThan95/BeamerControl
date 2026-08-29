@@ -41,6 +41,7 @@
       "projectorFailure": "The projector reports a fault with itself.",
       "authorizationFailed": "The password is wrong. You can change it behind the gear icon.",
       "replyMismatch": "The projector gave an unexpected answer.",
+      "malformedResponse": "The projector's answer could not be understood.",
       "notConnected": "No connection to the projector at the moment.",
       "connectionTimeout": "The projector did not answer in time.",
       "notConfirmed": "The projector did not confirm the command. Take a quick look at the screen — often it worked anyway.",

@@ -41,6 +41,7 @@
       "projectorFailure": "Der Beamer meldet eine Störung an sich selbst.",
       "authorizationFailed": "Das Passwort stimmt nicht. Es lässt sich hinter dem Zahnrad ändern.",
       "replyMismatch": "Der Beamer hat unerwartet geantwortet.",
+      "malformedResponse": "Der Beamer hat unverständlich geantwortet.",
       "notConnected": "Gerade keine Verbindung zum Beamer.",
       "connectionTimeout": "Der Beamer hat nicht rechtzeitig geantwortet.",
       "notConfirmed": "Der Beamer hat den Befehl nicht bestätigt. Schau kurz zur Leinwand — oft hat es trotzdem geklappt.",
