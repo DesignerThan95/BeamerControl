@@ -80,7 +80,10 @@
       ],
       "category": "public.app-category.utilities",
       "hardenedRuntime": false,
-      "identity": null
+      "identity": null,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Die App sucht im Netzwerk nach dem Beamer und steuert ihn über PJLink. Ohne diese Erlaubnis findet die Suche nichts."
+      }
     },
     "nsis": {
       "oneClick": false,
