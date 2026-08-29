@@ -520,3 +520,25 @@ test('pressing retry while a round is running does not start a second loop', asy
     assert.ok(api.polls <= 4, 'one loop asks at most once per beat, got ' + api.polls + ' asks in 4 beats');
 });
 
+// The waiting screen wants to say something more honest once an attempt has
+// actually gone wrong — not after a guessed number of seconds. So the count of
+// failed rounds has to be part of the published state.
+test('the state reports how many attempts have failed', async () => {
+    const { clock, api, b } = build({ power: 1 });
+    api.failing = true;
+
+    b.start();
+    await clock.advance(1);
+    assert.strictEqual(b.getState().failedAttempts, 1, 'one round has gone wrong');
+    assert.strictEqual(b.getState().link, 'connecting', 'it is still trying');
+
+    await clock.advance(POLL_MS + 1);
+    assert.strictEqual(b.getState().failedAttempts, 2);
+
+    // Once the projector answers again, the count starts over — otherwise the
+    // next short hiccup would show the pessimistic text straight away.
+    api.failing = false;
+    await clock.advance(POLL_MS * 4);
+    assert.strictEqual(b.getState().failedAttempts, 0);
+    assert.strictEqual(b.getState().link, 'online');
+});

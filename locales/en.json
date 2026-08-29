@@ -68,6 +68,8 @@
     "powerOffConfirmYes": "Yes, turn it off",
     "connectingTitle": "One moment …",
     "connectingText": "The app is contacting the projector.",
+    "connectingRetryText_one": "The projector is not answering straight away. The app will try once more.",
+    "connectingRetryText_other": "The projector is not answering straight away. The app will try {{count}} more times.",
     "offlineTitle": "No contact with the projector",
     "offlineText": "The app keeps trying. If nothing changes, this usually helps: switch the projector on or check the network cable. Everything else is behind the gear icon in the top right.",
     "retry": "Try again now",

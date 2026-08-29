@@ -257,7 +257,19 @@ window.App.viewOperate = (function () {
 
     function contentFor(state) {
         if (state.link === 'connecting') {
-            return waiting(i18next.t('operate.connectingTitle'), i18next.t('operate.connectingText'));
+            // Building the connection can take half a minute: three attempts,
+            // each waiting out its own timeout. Saying "one moment" for all of
+            // that looks like the app has stopped. So once an attempt has
+            // really gone wrong, it says so — and how many are left.
+            // i18next picks the singular from `count`; the last attempt reads
+            // "once more" rather than "1 more time".
+            const remaining = window.App.projector.MAX_FAILURES - state.failedAttempts;
+
+            const text = state.failedAttempts > 0 && remaining > 0
+                ? i18next.t('operate.connectingRetryText', { count: remaining })
+                : i18next.t('operate.connectingText');
+
+            return waiting(i18next.t('operate.connectingTitle'), text);
         }
 
         if (state.link === 'offline') {

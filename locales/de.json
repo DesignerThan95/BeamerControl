@@ -68,6 +68,8 @@
     "powerOffConfirmYes": "Ja, ausschalten",
     "connectingTitle": "Einen Moment …",
     "connectingText": "Die App nimmt Kontakt zum Beamer auf.",
+    "connectingRetryText_one": "Der Beamer antwortet nicht sofort. Die App versucht es noch einmal.",
+    "connectingRetryText_other": "Der Beamer antwortet nicht sofort. Die App versucht es noch {{count}} Mal.",
     "offlineTitle": "Kein Kontakt zum Beamer",
     "offlineText": "Die App versucht es weiter. Bleibt es dabei, hilft meist: Beamer einschalten oder Netzwerkkabel prüfen. Alles Weitere steht hinter dem Zahnrad oben rechts.",
     "retry": "Jetzt noch einmal versuchen",

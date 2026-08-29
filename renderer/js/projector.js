@@ -48,6 +48,12 @@
             // precaution, not as a finding.
             pjlinkClassSource: null,
             freeze: false,
+            // How many rounds have gone wrong in a row. The waiting screen
+            // reads it: after the first attempt has really failed it can say
+            // something more honest than "one moment". A number, not a clock —
+            // it changes when something actually went wrong, not after a
+            // guessed few seconds.
+            failedAttempts: 0,
             pending: null,
             commandError: null
         };
@@ -162,7 +168,8 @@
                     mute: next.mute,
                     freeze: next.freeze,
                     pjlinkClass: projectorClass,
-                    pjlinkClassSource: classSource
+                    pjlinkClassSource: classSource,
+                    failedAttempts: 0
                 };
 
                 if (state.pending) {
@@ -179,7 +186,9 @@
             } catch (e) {
                 consecutiveFailures++;
                 if (consecutiveFailures >= MAX_FAILURES && state.link !== 'offline') {
-                    update({ link: 'offline', pending: null });
+                    update({ link: 'offline', pending: null, failedAttempts: consecutiveFailures });
+                } else {
+                    update({ failedAttempts: consecutiveFailures });
                 }
                 // The next round builds the connection up again by itself.
             }
@@ -339,5 +348,5 @@
         };
     }
 
-    return { createProjector, POLL_MS, COMMAND_TIMEOUT_MS, BACKOFF_MS };
+    return { createProjector, POLL_MS, COMMAND_TIMEOUT_MS, BACKOFF_MS, MAX_FAILURES };
 });
