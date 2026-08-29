@@ -215,10 +215,11 @@ ipcMain.handle('get-power-state', async () => {
     return { state, description: states[state] || `Unknown (${state})` };
 });
 
+// The code goes through whole. Taking it apart here and putting it back
+// together in the library only created an opportunity to lose the Class 2
+// codes, whose second character may be a letter (spec 4.3).
 ipcMain.handle('set-input', async (event, inputCode) => {
-    const source = parseInt(inputCode.charAt(0));
-    const channel = parseInt(inputCode.charAt(1));
-    await call(connection.require(), 'setInput', { source, channel });
+    await call(connection.require(), 'setInput', inputCode);
     return { success: true };
 });
 

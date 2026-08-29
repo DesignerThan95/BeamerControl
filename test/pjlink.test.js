@@ -349,3 +349,54 @@ test('after a timeout the next command is sent again', async () => {
     projector.disconnect();
     fake.stop();
 });
+
+// ---------------------------------------------------------------------------
+// Class 2 input codes
+// ---------------------------------------------------------------------------
+
+// Spec 4.3/4.4: Class 1 numbers its inputs 11 to 59 — a digit for the kind of
+// connector, a digit for which one. Class 2 widened the second half to
+// "1-9 and A~Z" and added a sixth kind (INTERNAL), so the codes run 11 to 6Z.
+//
+// Reading the second half as a number turns HDMI-A into "3NaN" — and a command
+// that does not meet the format requirements is one a projector answers not
+// with an error but with silence (spec 6, Response method). It would look
+// exactly like an unreachable projector.
+test('an input code with a letter goes onto the wire as it is', async () => {
+    await withProjector(async function (projector, fake) {
+        await call(projector, 'setInput', '3A');
+        assert.deepStrictEqual(fake.lines, ['%1INPT 3A']);
+    });
+});
+
+test('the internal source of Class 2 is a source like any other', async () => {
+    await withProjector(async function (projector, fake) {
+        await call(projector, 'setInput', '61');
+        assert.deepStrictEqual(fake.lines, ['%1INPT 61']);
+    });
+});
+
+test('an input code with a letter is read back as it is', async () => {
+    await withProjector(async function (projector) {
+        const input = await call(projector, 'getInput');
+        assert.strictEqual(input.code, '3A');
+        assert.strictEqual(input.channel, 'A');
+        assert.strictEqual(input.source, 3);
+    }, { INPT: '3A' });
+});
+
+test('the list of inputs keeps the Class 2 codes', async () => {
+    await withProjector(async function (projector) {
+        const inputs = await call(projector, 'getInputs');
+        assert.deepStrictEqual(inputs.map(function (i) { return i.code; }), ['31', '3A', '61']);
+    }, { INST: '31 3A 61' });
+});
+
+// The Class 1 codes must come through untouched — they are what every
+// projector in use here speaks.
+test('a Class 1 input code is unchanged', async () => {
+    await withProjector(async function (projector, fake) {
+        await call(projector, 'setInput', '32');
+        assert.deepStrictEqual(fake.lines, ['%1INPT 32']);
+    });
+});
