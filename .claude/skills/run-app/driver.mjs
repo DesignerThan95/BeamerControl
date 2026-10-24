@@ -30,7 +30,7 @@ const ELECTRON_BIN = process.platform === 'darwin'
 //              together whatever it is told. Plenty of real devices do this,
 //              and they announce it nowhere.
 //   silent   — accepts the connection and says nothing (standby). The app runs
-//              into its 6 s timeout on every attempt.
+//              into its 3 s timeout on every attempt.
 //   resets   — throws the connection away mid-conversation. This is what used
 //              to produce Electron's error dialog.
 //   refuses  — nothing listening at all (instant ECONNREFUSED)
@@ -251,7 +251,7 @@ const COMMANDS = {
             sel || null));
     },
 
-    // Waits for a piece of text to show up. Connecting takes ~28 s before the
+    // Waits for a piece of text to show up. Connecting takes ~20 s before the
     // app gives up, so give it room: `wait-text Kein Kontakt 60`
     async 'wait-text'(rest) {
         if (!page) return console.log('ERROR: launch first');

@@ -395,6 +395,18 @@ window.App.viewOperate = (function () {
         return el('div', {}, parts);
     }
 
+    // One missed beat happens without anything being wrong — the projector's
+    // single PJLink slot was busy for a moment, the network hiccuped. Saying so
+    // every time would teach people that the notice means nothing. Two in a
+    // row is worth a quiet word: the controls stay, the word goes away by
+    // itself once the projector answers again, and after the third "no
+    // contact" takes over anyway.
+    const SHAKY_AFTER_FAILURES = 2;
+
+    function looksShaky(state) {
+        return state.link === 'online' && state.failedAttempts >= SHAKY_AFTER_FAILURES;
+    }
+
     function render() {
         if (!root) root = document.getElementById('ansicht-operate');
         const state = ctx.projector.getState();
@@ -405,6 +417,9 @@ window.App.viewOperate = (function () {
         // exist here.
         const parts = [];
         if (state.commandError) parts.push(errorBanner(state));
+        if (looksShaky(state)) parts.push(el('div', { class: 'streifen still' }, [
+            el('div', { class: 'streifen-text', text: i18next.t('operate.connectionShaky') })
+        ]));
         parts.push(contentFor(state));
 
         root.appendChild(el('div', { class: 'ansicht-innen' }, parts));

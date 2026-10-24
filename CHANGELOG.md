@@ -43,7 +43,9 @@ the projector, and everything technical sits behind the gear icon.
 - **PJLink console** behind *Show expert tools* on the technical page: send a
   single PJLink line and see the raw answer and its meaning, with templates for
   the common Class 1 and Class 2 commands.
-- The connecting screen says how many attempts are left.
+- The connecting screen says how many attempts are left. While the app is
+  running, a quiet notice appears from the second unanswered poll in a row and
+  goes away by itself when the projector answers again.
 - The network search says what went wrong when it cannot run.
 - An app icon of its own.
 - macOS explains why the app asks for access to the local network.
@@ -54,6 +56,8 @@ the projector, and everything technical sits behind the gear icon.
 ### Changed
 
 - **Updated to Electron 45** (from 27) and electron-builder 26.
+- The app waits 3 s for an answer instead of 6, so a lost connection shows as
+  "no contact" after about 20 s instead of 30.
 - After every command the app checks back every second for 20 seconds instead
   of every five, so the screen catches up quickly.
 - Error texts from the protocol appear on the operating screen only in

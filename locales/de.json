@@ -80,6 +80,7 @@
     "connectingRetryText_other": "Der Beamer antwortet nicht sofort. Die App versucht es noch {{count}} Mal.",
     "offlineTitle": "Kein Kontakt zum Beamer",
     "offlineText": "Die App versucht es weiter. Bleibt es dabei, hilft meist: Beamer einschalten oder Netzwerkkabel prüfen. Alles Weitere steht hinter dem Zahnrad oben rechts.",
+    "connectionShaky": "Der Beamer antwortet gerade nicht – die App versucht es weiter.",
     "retry": "Jetzt noch einmal versuchen",
     "poweringOnTitle": "Der Beamer wird eingeschaltet …",
     "poweringOnText": "Bitte einen Moment Geduld — das Hochfahren dauert meist eine halbe bis eine Minute.",

@@ -21,7 +21,11 @@ let mainWindow;
 
 // Without a timeout, an unreachable host hangs until the operating system
 // gives up — over a minute — and the interface stands still all the while.
-const CONNECT_TIMEOUT_MS = 6000;
+//
+// PJLink gives a projector two seconds for any answer, and the Optoma answers
+// within 150 ms. Three seconds is generous for a device that is there, and a
+// lost connection shows within about twenty seconds instead of thirty.
+const CONNECT_TIMEOUT_MS = 3000;
 
 // Who holds the connection to the projector, and who may throw it away, is
 // lib/connection.js's business. The reasons are written down there.

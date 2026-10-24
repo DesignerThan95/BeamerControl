@@ -177,6 +177,10 @@ input  { font: inherit; }
 .streifen-knopf { background: var(--warn-border); color: var(--warn-text); border: none; border-radius: var(--radius-sm); padding: 13px 20px; font-weight: 700; flex: none; }
 .streifen-knopf:hover { filter: brightness(1.08); }
 
+/* Der Beamer antwortet gerade nicht: leise, ohne Knopf — verschwindet von selbst. */
+.streifen.still { background: transparent; border-color: var(--border); padding: 12px 16px; }
+.streifen.still .streifen-text { color: var(--text-dim); opacity: 1; margin-top: 0; }
+
 /* Gescheiterter Befehl: gleiche Form, andere Farbe — und immer wegklickbar. */
 .streifen.fehler { background: transparent; border-color: var(--danger); }
 .streifen.fehler .streifen-titel { color: var(--danger); }

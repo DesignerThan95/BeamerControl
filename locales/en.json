@@ -80,6 +80,7 @@
     "connectingRetryText_other": "The projector is not answering straight away. The app will try {{count}} more times.",
     "offlineTitle": "No contact with the projector",
     "offlineText": "The app keeps trying. If nothing changes, this usually helps: switch the projector on or check the network cable. Everything else is behind the gear icon in the top right.",
+    "connectionShaky": "The projector is not answering right now – the app keeps trying.",
     "retry": "Try again now",
     "poweringOnTitle": "The projector is being switched on …",
     "poweringOnText": "Please be patient — starting up usually takes half a minute to a minute.",

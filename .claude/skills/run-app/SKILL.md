@@ -90,7 +90,7 @@ They are the ones the app has to survive:
   is refused with ERR1, and the reported state follows about a second later.
 - `silent` (the default) — accepts the connection and then says nothing. This
   is a projector in standby, and what an unreachable projector looks like to
-  the app: every attempt runs into its 6 s timeout.
+  the app: every attempt runs into its 3 s timeout.
 - `resets` — throws the connection away mid-conversation. This used to make
   Electron show a native error dialog; `main-log` reports whether any dialog
   appeared.
@@ -112,9 +112,11 @@ the projector was never asked.
 
 ## Gotchas
 
-- **Connecting takes ~28 s to give up.** Three attempts at a 6 s timeout with
-  5 s between them, then the screen switches to "Kein Kontakt zum Beamer". Give
-  `wait-text` at least 60 s, or you will time out on a working app.
+- **Connecting takes ~20 s to give up.** Three attempts at a 3 s timeout with
+  5 s between them, then the screen switches to "Kein Kontakt zum Beamer". From
+  the second failed attempt on, a running app shows "Der Beamer antwortet
+  gerade nicht" above the controls. Give `wait-text` at least 40 s, or you will
+  time out on a working app.
 - **`ELECTRON_RUN_AS_NODE` starts plain node instead of the app.** The driver
   strips it from the environment; if you launch Electron by hand, use
   `env -u ELECTRON_RUN_AS_NODE`.
