@@ -55,6 +55,8 @@
     "muteAudio": "Mute sound",
     "muteBoth": "Picture & sound off",
     "muteCoupledHint": "This projector can only mute picture and sound together. That is why there is one switch here instead of two — it always takes both.",
+    "muteCombinedHint": "This projector can only hide the picture together with the sound. \"Mute sound\" switches the sound alone.",
+    "muteCombinedAudioHint": "This projector can only hide the picture together with the sound. \"Mute sound\" switches the sound alone – but only while the picture is showing.",
     "freeze": "Freeze picture",
     "volumeHeading": "Volume on the projector",
     "audio": "Sound",
@@ -102,6 +104,10 @@
     "scanNetwork": "Search the network for projectors",
     "standbyHint": "The search only finds projectors that are currently answering on their network port. A projector that is switched off usually shuts down its network card as well. For it to stay reachable in standby — and to let you switch it on from here — the projector menu must have \"Network standby\" (sometimes \"LAN in standby\" or \"Always On\") enabled under Network.",
     "useDevice": "{{name}} · use this one",
+    "deviceDetected": "Detected: {{device}}.",
+    "deviceProfile": "Device profile \"{{profile}}\" is active.",
+    "deviceStandard": "No device profile – the PJLink standard applies.",
+    "deviceLearned": "No device profile. Learned in use: the picture can only be hidden together with the sound.",
     "sourcesHeading": "Picture sources",
     "sourceInputColumn": "Input on the projector",
     "sourceLabelColumn": "Name shown in the controls",
@@ -169,7 +175,126 @@
     "restartSetup": "Start setup over",
     "restartSetupConfirmTitle": "Start setup over?",
     "restartSetupConfirmText": "The saved connection and the names of the picture sources will be lost.",
-    "restartSetupConfirmYes": "Yes, set up again"
+    "restartSetupConfirmYes": "Yes, set up again",
+    "console": {
+      "expertToggle": "Show expert tools",
+      "heading": "PJLink commands",
+      "intro": "Sends a line to the projector exactly as typed and shows its answer. Commands take effect at once – \"POWR 0\" switches off without asking.",
+      "pickTemplate": "Choose a template …",
+      "send": "Send",
+      "sending": "Sending …",
+      "empty": "Nothing sent yet.",
+      "duration": "{{ms}} ms",
+      "invalid": {
+        "prefix": "The line has to start with %.",
+        "class": "The % is followed by the class: 1 or 2.",
+        "command": "The command is exactly four letters or digits, e.g. AVMT.",
+        "separator": "Command and parameter are separated by exactly one space.",
+        "parameter": "The parameter is missing or longer than 128 characters."
+      },
+      "reason": {
+        "not-connected": "Not connected to the projector – connect above under \"Connection\".",
+        "timeout": "No answer.",
+        "auth": "The projector refused the password.",
+        "connection": "The connection dropped."
+      },
+      "meaning": {
+        "ok": "Accepted",
+        "err1": "Unknown command",
+        "err2": "Parameter out of range",
+        "err3": "Not possible right now (projector busy)",
+        "err4": "Projector failure",
+        "erra": "Password refused",
+        "powr0": "Off (standby)",
+        "powr1": "On",
+        "powr2": "Cooling down",
+        "powr3": "Warming up",
+        "avmt10": "Picture on",
+        "avmt11": "Picture off only",
+        "avmt20": "Sound on",
+        "avmt21": "Sound muted only",
+        "avmt30": "Picture and sound on",
+        "avmt31": "Picture and sound off",
+        "clss": "PJLink Class {{cls}}",
+        "frez0": "No freeze",
+        "frez1": "Picture frozen",
+        "inpt1": "RGB, input {{number}}",
+        "inpt2": "Video, input {{number}}",
+        "inpt3": "Digital, input {{number}}",
+        "inpt4": "Storage, input {{number}}",
+        "inpt5": "Network, input {{number}}",
+        "inpt6": "Internal, input {{number}}",
+        "instHead": "Inputs:",
+        "erstNone": "No errors reported",
+        "erstHead": "Reported:",
+        "erstItems": {
+          "fan": {
+            "warning": "Fan: warning",
+            "error": "Fan: error"
+          },
+          "lamp": {
+            "warning": "Lamp: warning",
+            "error": "Lamp: error"
+          },
+          "temperature": {
+            "warning": "Temperature: warning",
+            "error": "Temperature: error"
+          },
+          "cover": {
+            "warning": "Cover: warning",
+            "error": "Cover: error"
+          },
+          "filter": {
+            "warning": "Filter: warning",
+            "error": "Filter: error"
+          },
+          "other": {
+            "warning": "Other: warning",
+            "error": "Other: error"
+          }
+        },
+        "lampHead": "Lamps:",
+        "lampOn": "lamp {{number}} {{hours}} h, on",
+        "lampOff": "lamp {{number}} {{hours}} h, off"
+      },
+      "templates": {
+        "powrQuery": "Query power",
+        "powrOn": "Switch on",
+        "powrOff": "Switch off",
+        "inptQuery": "Query picture source",
+        "inptSet": "Choose picture source (31 = digital 1)",
+        "avmtQuery": "Query picture/sound mute",
+        "avmt10": "Show picture again",
+        "avmt11": "Hide picture only",
+        "avmt20": "Sound on again",
+        "avmt21": "Mute sound only",
+        "avmt30": "Picture and sound on again",
+        "avmt31": "Picture and sound off",
+        "erstQuery": "Query error status",
+        "lampQuery": "Query lamp hours",
+        "instQuery": "Query available inputs",
+        "nameQuery": "Query device name",
+        "inf1Query": "Query manufacturer",
+        "inf2Query": "Query model",
+        "infoQuery": "Query other device information",
+        "clssQuery": "Query PJLink class",
+        "snumQuery": "Query serial number",
+        "sverQuery": "Query software version",
+        "innmQuery": "Query name of input 31",
+        "iresQuery": "Query input resolution",
+        "rresQuery": "Query recommended resolution",
+        "filtQuery": "Query filter hours",
+        "rlmpQuery": "Query replacement lamp",
+        "rfilQuery": "Query replacement filter",
+        "frezQuery": "Query freeze",
+        "frezOn": "Freeze on",
+        "frezOff": "Freeze off",
+        "svolUp": "Speaker louder",
+        "svolDown": "Speaker quieter",
+        "mvolUp": "Microphone louder",
+        "mvolDown": "Microphone quieter"
+      }
+    }
   },
   "setup": {
     "wizardLabel": "Setup",

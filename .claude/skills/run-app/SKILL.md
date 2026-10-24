@@ -54,7 +54,8 @@ Then **look at the screenshots** in `/tmp/beamer-shots/` (override with
 |---|---|
 | `launch` | start the fake projector and the app, wait for the first screen |
 | `launch fresh` | same, but wipes the settings so the setup wizard runs |
-| `beamer answers\|silent\|resets\|coupled` | change how the fake projector behaves, live |
+| `launch keep` | same, but leaves the settings as the last run left them (restart tests) |
+| `beamer answers\|silent\|resets\|coupled\|swallows\|optoma` | change how the fake projector behaves, live |
 | `beamerstats` | connections the projector saw, and how many are still open |
 | `ss [name]` | screenshot → `$SCREENSHOT_DIR/<name>.png` |
 | `click-text <text>` | click the button containing that text (the usual way in) |
@@ -82,6 +83,11 @@ They are the ones the app has to survive:
 - `swallows` — answers every query, but says nothing about a mute command. It
   carries it out all the same. Real devices do this, and it used to produce
   "the projector did not answer in time" for a command that had worked.
+- `optoma` — the Optoma 1080p in the church, as measured on the device: it
+  identifies itself as `Optoma` / `Optoma 1080p` (so
+  `devices/optoma-1080p.json` applies), and `AVMT` only reads the first digit
+  and toggles — `2x` the sound, `3x` the picture. `3x` is never answered, `1x`
+  is refused with ERR1, and the reported state follows about a second later.
 - `silent` (the default) — accepts the connection and then says nothing. This
   is a projector in standby, and what an unreachable projector looks like to
   the app: every attempt runs into its 6 s timeout.

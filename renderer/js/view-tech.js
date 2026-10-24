@@ -40,6 +40,15 @@ window.App.viewTech = (function () {
     // by themselves — they are here because someone asked for them.
     let class2Values = { details: null, resolution: null, maintenance: null };
     let class2Loading = false;
+    // The PJLink console. Shown only once the switch at the bottom of the page
+    // has been flipped, and hidden again after a restart: it is a tool for
+    // whoever sets the projector up, not for the service.
+    let expertTools = false;
+    let consoleDraft = '%1AVMT ?';
+    let consoleEntries = [];
+    let consoleBusy = false;
+    let consoleInvalid = null;
+    let consoleTemplates = null;
 
     function redraw() { render(); }
 
@@ -143,7 +152,24 @@ window.App.viewTech = (function () {
             })));
         }
 
+        const device = deviceLine();
+        if (device) children.push(device);
+
         return el('div', { class: 'block' }, children);
+    }
+
+    // Which device the app is talking to, and whether a profile from devices/
+    // applies. Only once it has been connected to.
+    function deviceLine() {
+        const d = ctx.projector.getState().device;
+        if (!d) return null;
+
+        const who = [d.manufacturer, d.model].filter(Boolean).join(' · ') || i18next.t('common.pjlinkDevice');
+        let key = 'tech.deviceStandard';
+        if (d.profile) key = 'tech.deviceProfile';
+        else if (d.learned) key = 'tech.deviceLearned';
+
+        return el('p', { class: 'hinweis', text: i18next.t('tech.deviceDetected', { device: who }) + ' ' + i18next.t(key, { profile: d.profile }) });
     }
 
     async function startScan() {
@@ -536,6 +562,130 @@ window.App.viewTech = (function () {
         ]);
     }
 
+    // ---------- Expert tools: PJLink console ----------
+
+    function meaningText(meaning) {
+        const base = 'tech.console.meaning.';
+        const head = i18next.t(base + meaning.key, meaning.values || {});
+        if (!meaning.items) return head;
+        return head + ' ' + meaning.items.map(function (i) { return i18next.t(base + i.key, i.values || {}); }).join(', ');
+    }
+
+    function consoleEntry(r) {
+        // No answer is not a failure here: some projectors carry a command out
+        // without acknowledging it, so it is shown neutrally.
+        const answer = r.ok
+            ? el('div', { class: 'konsole-antwort', text: '← ' + r.received })
+            : el('div', { class: 'konsole-antwort ' + (r.reason === 'timeout' ? 'still' : 'fehler'), text: i18next.t('tech.console.reason.' + r.reason) });
+
+        return el('div', { class: 'konsole-eintrag' }, [
+            el('div', { class: 'konsole-kopf' }, [
+                el('span', { class: 'konsole-gesendet', text: '→ ' + r.sent }),
+                el('span', { class: 'konsole-dauer', text: i18next.t('tech.console.duration', { ms: r.ms }) })
+            ]),
+            answer,
+            r.ok && r.meaning ? el('div', { class: 'konsole-bedeutung', text: meaningText(r.meaning) }) : null
+        ]);
+    }
+
+    async function sendConsoleLine() {
+        if (consoleBusy) return;
+        consoleBusy = true;
+        consoleInvalid = null;
+        redraw();
+
+        const result = await ctx.api.sendRaw(consoleDraft);
+        consoleBusy = false;
+
+        if (result.reason === 'invalid') {
+            consoleInvalid = result.invalid;
+        } else {
+            consoleEntries.unshift(result);
+            ctx.log.add('PJLink console: ' + result.sent + ' → ' +
+                (result.ok ? result.received : result.reason + (result.detail ? ' (' + result.detail + ')' : '')),
+                result.ok || result.reason === 'timeout' ? 'info' : 'error');
+            // A command that sets something: let the operating screen catch up.
+            if (result.changes) ctx.projector.refreshNow();
+        }
+
+        redraw();
+        const field = document.getElementById('konsole-eingabe');
+        if (field) field.focus();
+    }
+
+    async function loadConsoleTemplates() {
+        consoleTemplates = [];
+        consoleTemplates = await ctx.api.getRawTemplates();
+        redraw();
+    }
+
+    function templateLine(t) {
+        return '%' + t.cls + t.cmd + ' ' + t.param;
+    }
+
+    function consoleBlock() {
+        if (!consoleTemplates) loadConsoleTemplates();
+
+        const field = el('input', {
+            id: 'konsole-eingabe',
+            class: 'eingabe konsole-eingabe',
+            type: 'text',
+            spellcheck: 'false',
+            value: consoleDraft,
+            oninput: function (e) { consoleDraft = e.target.value; },
+            onkeydown: function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); sendConsoleLine(); }
+            }
+        });
+
+        // A template only fills in the line; sending stays a deliberate step.
+        const picker = el('select', {
+            class: 'eingabe konsole-vorlagen',
+            onchange: function (e) {
+                const t = consoleTemplates.find(function (x) { return x.id === e.target.value; });
+                if (!t) return;
+                consoleDraft = templateLine(t);
+                consoleInvalid = null;
+                redraw();
+                const next = document.getElementById('konsole-eingabe');
+                if (next) next.focus();
+            }
+        }, [el('option', { value: '', text: i18next.t('tech.console.pickTemplate') })].concat(consoleTemplates.map(function (t) {
+            return el('option', { value: t.id, text: templateLine(t) + ' — ' + i18next.t('tech.console.templates.' + t.id) });
+        })));
+
+        return el('div', { class: 'block' }, [
+            el('div', { class: 'block-titel', text: i18next.t('tech.console.heading') }),
+            el('p', { class: 'hinweis', text: i18next.t('tech.console.intro') }),
+            picker,
+            el('div', { class: 'konsole-eingabezeile' }, [
+                field,
+                el('button', {
+                    class: 'knopf haupt',
+                    disabled: consoleBusy,
+                    onclick: function () { sendConsoleLine(); }
+                }, [i18next.t(consoleBusy ? 'tech.console.sending' : 'tech.console.send')])
+            ]),
+            consoleInvalid ? el('div', { class: 'konsole-ungueltig', text: i18next.t('tech.console.invalid.' + consoleInvalid) }) : null,
+            el('div', { class: 'konsole-liste' }, consoleEntries.length
+                ? consoleEntries.map(consoleEntry)
+                : [el('div', { class: 'konsole-leer', text: i18next.t('tech.console.empty') })])
+        ]);
+    }
+
+    function expertToggle() {
+        return el('div', { class: 'block' }, [
+            el('label', { class: 'experten-schalter' }, [
+                el('input', {
+                    type: 'checkbox',
+                    checked: expertTools,
+                    onchange: function (e) { expertTools = e.target.checked; redraw(); }
+                }),
+                i18next.t('tech.console.expertToggle')
+            ])
+        ]);
+    }
+
     function render() {
         if (!root) root = document.getElementById('ansicht-tech');
         ui.clear(root);
@@ -546,7 +696,9 @@ window.App.viewTech = (function () {
             class2Block(),
             appearanceBlock(),
             languageBlock(),
-            logBlock()
+            logBlock(),
+            expertToggle(),
+            expertTools ? consoleBlock() : null
         ]));
     }
 

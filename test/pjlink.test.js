@@ -653,3 +653,100 @@ test('the greeting is not mistaken for a malformed response', async () => {
         assert.strictEqual(await call(projector, 'getPowerState'), 1);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Raw lines from the PJLink console
+// ---------------------------------------------------------------------------
+
+test('a raw line goes onto the wire as given and its answer comes back raw', async () => {
+    await withProjector(async function (projector, fake) {
+        const answer = await call(projector, 'sendRaw', { cls: 1, cmd: 'AVMT', param: '?' });
+        assert.strictEqual(answer, '%1AVMT=31');
+        assert.deepStrictEqual(fake.lines, ['%1AVMT ?']);
+    }, { AVMT: '31' });
+});
+
+test('ERR2 on a raw line is an answer, not an error', async () => {
+    await withProjector(async function (projector) {
+        const answer = await call(projector, 'sendRaw', { cls: 1, cmd: 'AVMT', param: '?' });
+        assert.strictEqual(answer, '%1AVMT=ERR2');
+    }, { AVMT: 'ERR2' });
+});
+
+test('a raw Class 2 line keeps its %2 on a Class 1 connection', async () => {
+    await withProjector(async function (projector, fake) {
+        assert.strictEqual(projector.class, 1);
+        const answer = await call(projector, 'sendRaw', { cls: 2, cmd: 'SNUM', param: '?' });
+        assert.strictEqual(answer, '%2SNUM=SN-4711');
+        assert.deepStrictEqual(fake.lines, ['%2SNUM ?']);
+    });
+});
+
+test('no answer to a raw line is an error', async () => {
+    const fake = silentProjector();
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 300 });
+    try {
+        await assert.rejects(() => call(projector, 'sendRaw', { cls: 1, cmd: 'POWR', param: '?' }), /Connection timeout/);
+    } finally {
+        projector.disconnect();
+        fake.stop();
+    }
+});
+
+test('a refused password on a raw line is an error, not an answer', async () => {
+    const fake = silentProjector(function (sock) {
+        sock.write('PJLINK 1 1a2b3c4d\r');
+        sock.on('data', function () { sock.write('PJLINK ERRA\r'); });
+    });
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: 'wrong', timeout: 2000 });
+    try {
+        await assert.rejects(() => call(projector, 'sendRaw', { cls: 1, cmd: 'POWR', param: '?' }), /Authorization failed/);
+    } finally {
+        projector.disconnect();
+        fake.stop();
+    }
+});
+
+// ---------------------------------------------------------------------------
+// A command with a short answer timeout of its own
+// ---------------------------------------------------------------------------
+
+// Answers everything except AVMT 31/30 — which it carries out without a word,
+// like the Optoma 1080p.
+function quietAboutCombinedMute() {
+    return silentProjector(function (sock) {
+        sock.write('PJLINK 0\r');
+        sock.on('data', function (d) {
+            for (const line of d.toString().split('\r').filter(Boolean)) {
+                if (/^%1AVMT 3[01]$/.test(line)) continue;
+                sock.write(line.slice(0, 6) + '=' + (line.slice(7) === '?' ? '1' : 'OK') + '\r');
+            }
+        });
+    });
+}
+
+test('an unanswered command gives up after its own timeout, and the queue moves on', async () => {
+    const fake = quietAboutCombinedMute();
+    const port = await fake.start();
+    const projector = new PJLink({ host: '127.0.0.1', port: port, password: null, timeout: 4000 });
+    try {
+        const started = Date.now();
+        await assert.rejects(() => call(projector, 'setMuteRaw', '31', { answerTimeout: 200 }), /Connection timeout/);
+        assert.ok(Date.now() - started < 1500, 'it must not wait out the connection timeout');
+
+        // The next command gets a connection of its own and its own answer.
+        assert.strictEqual(await call(projector, 'getPowerState'), 1);
+    } finally {
+        projector.disconnect();
+        fake.stop();
+    }
+});
+
+test('an answer before the short timeout counts as usual', async () => {
+    await withProjector(async function (projector) {
+        await call(projector, 'setMuteRaw', '21', { answerTimeout: 1000 });
+        await call(projector, 'setMuteRaw', '20');
+    });
+});

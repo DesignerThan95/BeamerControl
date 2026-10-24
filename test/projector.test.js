@@ -604,3 +604,45 @@ test('the state reports how many attempts have failed', async () => {
     assert.strictEqual(b.getState().failedAttempts, 0);
     assert.strictEqual(b.getState().link, 'online');
 });
+
+// ---------------------------------------------------------------------------
+// Device profiles
+// ---------------------------------------------------------------------------
+
+const COMBINED_DEVICE = {
+    manufacturer: 'Optoma', model: 'Optoma 1080p', profile: 'Optoma 1080p', learned: false,
+    mute: { picture: 'combined', combinedAcknowledged: false, audioWhileCombined: false, toggles: true }
+};
+
+test('the device from the connection ends up in the state', async () => {
+    const { clock, api, b } = build({ power: 1 });
+    api.connect = async function () { return { success: true, pjlinkClass: 1, device: COMBINED_DEVICE }; };
+    b.start();
+    await clock.advance(1);
+    assert.deepStrictEqual(b.getState().device, COMBINED_DEVICE);
+});
+
+test('what a mute command teaches about the device is taken over', async () => {
+    const { clock, api, b } = build({ power: 1 });
+    b.start();
+    await clock.advance(1);
+    api.setMute = async function () { return { success: true, mode: 'combined', device: COMBINED_DEVICE }; };
+    await b.setMute({ video: true, audio: true });
+    assert.deepStrictEqual(b.getState().device, COMBINED_DEVICE);
+});
+
+// The Optoma brings the sound back the way it was: showing the picture again
+// after "picture & sound off" leaves a muted sound muted.
+test('on a combined device the picture switch is confirmed by the picture alone', async () => {
+    const { clock, api, b } = build({ power: 1, mute: { video: true, audio: true } });
+    api.connect = async function () { return { success: true, pjlinkClass: 1, device: COMBINED_DEVICE }; };
+    b.start();
+    await clock.advance(1);
+
+    await b.setMute({ video: false, audio: false });
+    api.state.mute = { video: false, audio: true };
+    await clock.advance(POLL_MS);
+
+    assert.strictEqual(b.getState().pending, null);
+    assert.strictEqual(b.getState().commandError, null);
+});

@@ -273,3 +273,20 @@ input  { font: inherit; }
 .lautstaerke-paar { display: flex; flex-direction: column; gap: 8px; }
 .lautstaerke-knoepfe { display: flex; gap: 8px; }
 .knopf.lautstaerke { min-width: 108px; }
+
+/* ---------- PJLink-Konsole (Experten-Werkzeuge) ---------- */
+
+.experten-schalter { display: flex; gap: 10px; align-items: center; color: var(--text-dim); font-size: var(--fs-small); cursor: pointer; }
+.konsole-vorlagen { margin-top: 14px; }
+.konsole-eingabezeile { display: flex; gap: var(--gap); margin-top: 10px; }
+.konsole-eingabe { flex: 1; font-family: ui-monospace, 'Consolas', monospace; }
+.konsole-ungueltig { margin-top: 8px; font-size: var(--fs-small); color: var(--danger); }
+.konsole-liste { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+.konsole-leer { font-size: var(--fs-small); color: var(--text-dim); }
+.konsole-eintrag { background: var(--bg); border: var(--border-width) solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; font-family: ui-monospace, 'Consolas', monospace; font-size: var(--fs-small); line-height: 1.7; }
+.konsole-kopf { display: flex; justify-content: space-between; gap: var(--gap); }
+.konsole-dauer { color: var(--text-dim); }
+.konsole-antwort { color: var(--text); }
+.konsole-antwort.still { color: var(--text-dim); }
+.konsole-antwort.fehler { color: var(--danger); }
+.konsole-bedeutung { color: var(--ok); font-family: inherit; }

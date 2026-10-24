@@ -44,6 +44,10 @@
             // the two that comes back as both. Until it has shown that, the two
             // count as separate, which is what the standard promises.
             muteCoupled: false,
+            // The device as the main process describes it: manufacturer,
+            // model, which profile applies (devices/), and how it mutes.
+            // null until the first connection.
+            device: null,
             // What the projector reports about its PJLink level when connecting.
             // null means: not asked yet.
             pjlinkClass: null,
@@ -95,6 +99,13 @@
             if (p.kind === 'mute') {
                 const target = p.target;
                 if (next.mute.video === target.video && next.mute.audio === target.audio) return true;
+
+                // A device that hides the picture only together with the sound
+                // brings the sound back the way it was before. Whoever pressed
+                // the picture switch asked about the picture; the sound is the
+                // device's business.
+                const combined = state.device && state.device.mute && state.device.mute.picture === 'combined';
+                if (combined && p.moved) return next.mute[p.moved] === target[p.moved];
 
                 // Many projectors can only mute picture and sound together.
                 // They answer the separate command with OK all the same and
@@ -170,6 +181,7 @@
                 // is not up, a fresh attempt is made before every poll.
                 let projectorClass = state.pjlinkClass;
                 let classSource = state.pjlinkClassSource;
+                let device = state.device;
                 if (state.link !== 'online') {
                     const result = await api.connect();
                     // When connecting, the projector says which PJLink level it
@@ -179,6 +191,7 @@
                         projectorClass = result.pjlinkClass;
                         classSource = result.pjlinkClassSource || null;
                     }
+                    if (result && result.device) device = result.device;
                 }
                 const next = await poll();
                 consecutiveFailures = 0;
@@ -193,6 +206,7 @@
                     freeze: next.freeze,
                     pjlinkClass: projectorClass,
                     pjlinkClassSource: classSource,
+                    device: device,
                     failedAttempts: 0
                 };
 
@@ -362,7 +376,14 @@
                 // Whoever mutes the sound has said nothing about the picture.
                 const wish = { video: target.video, audio: target.audio, only: moved };
 
-                return send('mute', target, function () { return api.setMute(wish); }, { moved: moved });
+                return send('mute', target, async function () {
+                    const result = await api.setMute(wish);
+                    // What the attempt revealed about the device — a picture it
+                    // can only hide together with the sound, say — applies from
+                    // the next press on.
+                    if (result && result.device) update({ device: result.device });
+                    return result;
+                }, { moved: moved });
             },
 
             // Freeze does have a query and therefore runs through the normal

@@ -37,6 +37,7 @@
       "preload.js",
       "renderer/**/*",
       "locales/**/*",
+      "devices/**/*",
       "index.js",
       "lib/**/*",
       "package.json",

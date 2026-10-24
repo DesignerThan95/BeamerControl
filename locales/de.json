@@ -55,6 +55,8 @@
     "muteAudio": "Ton stumm",
     "muteBoth": "Bild & Ton aus",
     "muteCoupledHint": "Dieser Beamer schaltet Bild und Ton nur gemeinsam stumm. Deshalb steht hier ein Schalter statt zwei — er nimmt immer beides mit.",
+    "muteCombinedHint": "Dieser Beamer kann das Bild nur zusammen mit dem Ton ausblenden. Den Ton allein schaltet „Ton stumm“.",
+    "muteCombinedAudioHint": "Dieser Beamer kann das Bild nur zusammen mit dem Ton ausblenden. Den Ton allein schaltet „Ton stumm“ – aber nur, solange das Bild zu sehen ist.",
     "freeze": "Standbild",
     "volumeHeading": "Lautstärke am Beamer",
     "audio": "Ton",
@@ -102,6 +104,10 @@
     "scanNetwork": "Beamer im Netzwerk suchen",
     "standbyHint": "Die Suche findet nur Beamer, die gerade auf ihren Netzwerkanschluss antworten. Ein ausgeschalteter Beamer schaltet meist auch seine Netzwerkkarte ab. Damit er im Standby erreichbar bleibt — und sich von hier aus einschalten lässt —, muss im Beamer-Menü unter Netzwerk „Netzwerk-Standby\" (teils „LAN im Standby\" oder „Always On\") aktiviert sein.",
     "useDevice": "{{name}} · übernehmen",
+    "deviceDetected": "Erkannt: {{device}}.",
+    "deviceProfile": "Geräteprofil „{{profile}}“ ist aktiv.",
+    "deviceStandard": "Kein Geräteprofil – es gilt der PJLink-Standard.",
+    "deviceLearned": "Kein Geräteprofil. Im Betrieb gelernt: das Bild lässt sich nur zusammen mit dem Ton ausblenden.",
     "sourcesHeading": "Bildquellen",
     "sourceInputColumn": "Eingang am Beamer",
     "sourceLabelColumn": "Name für die Bedienung",
@@ -169,7 +175,126 @@
     "restartSetup": "Einrichtung neu starten",
     "restartSetupConfirmTitle": "Einrichtung neu starten?",
     "restartSetupConfirmText": "Die gespeicherte Verbindung und die Namen der Bildquellen gehen dabei verloren.",
-    "restartSetupConfirmYes": "Ja, neu einrichten"
+    "restartSetupConfirmYes": "Ja, neu einrichten",
+    "console": {
+      "expertToggle": "Experten-Werkzeuge anzeigen",
+      "heading": "PJLink-Befehle",
+      "intro": "Schickt eine Zeile so, wie sie ist, an den Beamer und zeigt seine Antwort. Befehle wirken sofort – auch „POWR 0“ schaltet ohne Rückfrage aus.",
+      "pickTemplate": "Vorlage wählen …",
+      "send": "Senden",
+      "sending": "Sendet …",
+      "empty": "Noch nichts gesendet.",
+      "duration": "{{ms}} ms",
+      "invalid": {
+        "prefix": "Die Zeile muss mit % beginnen.",
+        "class": "Nach dem % kommt die Klasse: 1 oder 2.",
+        "command": "Der Befehl hat genau vier Buchstaben oder Ziffern, z. B. AVMT.",
+        "separator": "Zwischen Befehl und Parameter gehört genau ein Leerzeichen.",
+        "parameter": "Der Parameter fehlt oder ist länger als 128 Zeichen."
+      },
+      "reason": {
+        "not-connected": "Keine Verbindung zum Beamer – oben unter „Verbindung“ verbinden.",
+        "timeout": "Keine Antwort.",
+        "auth": "Der Beamer hat das Passwort abgelehnt.",
+        "connection": "Die Verbindung ist abgebrochen."
+      },
+      "meaning": {
+        "ok": "Angenommen",
+        "err1": "Unbekannter Befehl",
+        "err2": "Parameter außerhalb des Bereichs",
+        "err3": "Gerade nicht möglich (Beamer beschäftigt)",
+        "err4": "Gerätefehler am Beamer",
+        "erra": "Passwort abgelehnt",
+        "powr0": "Aus (Standby)",
+        "powr1": "An",
+        "powr2": "Kühlt ab",
+        "powr3": "Wärmt auf",
+        "avmt10": "Bild an",
+        "avmt11": "Nur Bild aus",
+        "avmt20": "Ton an",
+        "avmt21": "Nur Ton stumm",
+        "avmt30": "Bild und Ton an",
+        "avmt31": "Bild und Ton aus",
+        "clss": "PJLink Class {{cls}}",
+        "frez0": "Kein Standbild",
+        "frez1": "Standbild an",
+        "inpt1": "RGB, Eingang {{number}}",
+        "inpt2": "Video, Eingang {{number}}",
+        "inpt3": "Digital, Eingang {{number}}",
+        "inpt4": "Speicher, Eingang {{number}}",
+        "inpt5": "Netzwerk, Eingang {{number}}",
+        "inpt6": "Intern, Eingang {{number}}",
+        "instHead": "Eingänge:",
+        "erstNone": "Keine Fehler gemeldet",
+        "erstHead": "Gemeldet:",
+        "erstItems": {
+          "fan": {
+            "warning": "Lüfter: Warnung",
+            "error": "Lüfter: Fehler"
+          },
+          "lamp": {
+            "warning": "Lampe: Warnung",
+            "error": "Lampe: Fehler"
+          },
+          "temperature": {
+            "warning": "Temperatur: Warnung",
+            "error": "Temperatur: Fehler"
+          },
+          "cover": {
+            "warning": "Abdeckung: Warnung",
+            "error": "Abdeckung: Fehler"
+          },
+          "filter": {
+            "warning": "Filter: Warnung",
+            "error": "Filter: Fehler"
+          },
+          "other": {
+            "warning": "Sonstiges: Warnung",
+            "error": "Sonstiges: Fehler"
+          }
+        },
+        "lampHead": "Lampen:",
+        "lampOn": "Lampe {{number}} {{hours}} h, an",
+        "lampOff": "Lampe {{number}} {{hours}} h, aus"
+      },
+      "templates": {
+        "powrQuery": "Ein/Aus abfragen",
+        "powrOn": "Einschalten",
+        "powrOff": "Ausschalten",
+        "inptQuery": "Bildquelle abfragen",
+        "inptSet": "Bildquelle wählen (31 = Digital 1)",
+        "avmtQuery": "Bild/Ton-Stummschaltung abfragen",
+        "avmt10": "Bild wieder zeigen",
+        "avmt11": "Nur Bild ausblenden",
+        "avmt20": "Ton wieder an",
+        "avmt21": "Nur Ton stumm",
+        "avmt30": "Bild und Ton wieder an",
+        "avmt31": "Bild und Ton aus",
+        "erstQuery": "Fehlerstatus abfragen",
+        "lampQuery": "Lampenstunden abfragen",
+        "instQuery": "Verfügbare Eingänge abfragen",
+        "nameQuery": "Gerätename abfragen",
+        "inf1Query": "Hersteller abfragen",
+        "inf2Query": "Modell abfragen",
+        "infoQuery": "Weitere Geräteinfos abfragen",
+        "clssQuery": "PJLink-Klasse abfragen",
+        "snumQuery": "Seriennummer abfragen",
+        "sverQuery": "Softwareversion abfragen",
+        "innmQuery": "Name von Eingang 31 abfragen",
+        "iresQuery": "Eingangsauflösung abfragen",
+        "rresQuery": "Empfohlene Auflösung abfragen",
+        "filtQuery": "Filterstunden abfragen",
+        "rlmpQuery": "Ersatzlampe abfragen",
+        "rfilQuery": "Ersatzfilter abfragen",
+        "frezQuery": "Standbild abfragen",
+        "frezOn": "Standbild an",
+        "frezOff": "Standbild aus",
+        "svolUp": "Lautsprecher lauter",
+        "svolDown": "Lautsprecher leiser",
+        "mvolUp": "Mikrofon lauter",
+        "mvolDown": "Mikrofon leiser"
+      }
+    }
   },
   "setup": {
     "wizardLabel": "Einrichtung",

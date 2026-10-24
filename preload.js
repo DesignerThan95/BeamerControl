@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld('pjlinkAPI', {
     getResolutions: () => ipcRenderer.invoke('get-resolutions'),
     getMaintenance: () => ipcRenderer.invoke('get-maintenance'),
 
+    // PJLink console (expert tools on the technical page)
+    sendRaw: (line) => ipcRenderer.invoke('send-raw', line),
+    getRawTemplates: () => ipcRenderer.invoke('get-raw-templates'),
+
     // Saving and loading settings
     loadSettings: () => ipcRenderer.invoke('load-settings'),
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

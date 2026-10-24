@@ -83,18 +83,26 @@ window.App.viewOperate = (function () {
         ]);
     }
 
+    // How this device mutes, as the main process describes it. Without a
+    // connection yet: what PJLink promises.
+    const STANDARD_MUTE = { picture: 'separate', combinedAcknowledged: true, audioWhileCombined: true, toggles: false };
+
+    function muteBehaviour(state) {
+        return (state.device && state.device.mute) || STANDARD_MUTE;
+    }
+
     function statusRow(state) {
         const locked = isBusy(state);
         const mutePending = state.pending && state.pending.kind === 'mute';
 
-        function chip(label, icon, active, target) {
+        function chip(label, icon, active, target, unavailable) {
             const showsSpinner = mutePending
                 && state.pending.target.video === target.video
                 && state.pending.target.audio === target.audio;
 
             return el('button', {
                 class: 'chip' + (active ? ' aktiv' : ''),
-                disabled: locked,
+                disabled: locked || unavailable,
                 onclick: function () {
                     run(function () { return ctx.projector.setMute(target); },
                         active ? label + ' lifted' : label + ' switched on');
@@ -106,15 +114,30 @@ window.App.viewOperate = (function () {
         // couples picture and sound has shown that by now — then a single
         // switch is the honest control: whoever presses it knows the picture
         // goes with it, instead of finding a black screen after muting.
-        const chips = state.muteCoupled
-            ? [(function () {
-                const on = state.mute.video || state.mute.audio;
-                return chip(i18next.t('operate.muteBoth'), '🔇', on, { video: !on, audio: !on });
-            })()]
-            : [
+        //
+        // A device that can hide the picture only together with the sound (its
+        // profile says so, or it has refused 11) keeps a switch for the sound
+        // of its own — the sound alone does work there. The picture switch
+        // says what it really does. While both are off, the sound switch waits
+        // if the device cannot bring the sound back on its own.
+        const behaviour = muteBehaviour(state);
+        let chips;
+        if (state.muteCoupled) {
+            const on = state.mute.video || state.mute.audio;
+            chips = [chip(i18next.t('operate.muteBoth'), '🔇', on, { video: !on, audio: !on })];
+        } else if (behaviour.picture === 'combined') {
+            const off = state.mute.video;
+            chips = [
+                chip(i18next.t('operate.muteBoth'), '🚫', off, { video: !off, audio: !off }),
+                chip(i18next.t('operate.muteAudio'), '🔇', state.mute.audio, { video: state.mute.video, audio: !state.mute.audio },
+                    off && !behaviour.audioWhileCombined)
+            ];
+        } else {
+            chips = [
                 chip(i18next.t('operate.hideVideo'), '🚫', state.mute.video, { video: !state.mute.video, audio: state.mute.audio }),
                 chip(i18next.t('operate.muteAudio'), '🔇', state.mute.audio, { video: state.mute.video, audio: !state.mute.audio })
             ];
+        }
 
         // Freeze — unlike volume — does have a query and therefore runs through
         // the same confirmation route as muting.
@@ -341,7 +364,7 @@ window.App.viewOperate = (function () {
                             // the picture whether we ask for it or not. Then
                             // that is what gets asked for — a wish the device
                             // cannot grant is not worth sending.
-                            return ctx.projector.setMute(state.muteCoupled
+                            return ctx.projector.setMute(state.muteCoupled || muteBehaviour(state).picture === 'combined'
                                 ? { video: false, audio: false }
                                 : { video: false, audio: state.mute.audio });
                         }, 'Picture shown again');
@@ -356,6 +379,10 @@ window.App.viewOperate = (function () {
         // row, not as a banner — it is not a fault, it is what the device is.
         if (state.muteCoupled) {
             parts.push(el('div', { class: 'hinweis', text: i18next.t('operate.muteCoupledHint') }));
+        } else if (muteBehaviour(state).picture === 'combined') {
+            parts.push(el('div', { class: 'hinweis', text: i18next.t(muteBehaviour(state).audioWhileCombined
+                ? 'operate.muteCombinedHint'
+                : 'operate.muteCombinedAudioHint') }));
         }
 
         parts.push(sourceSection(state));

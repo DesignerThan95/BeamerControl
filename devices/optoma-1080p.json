@@ -1,0 +1,14 @@
+{
+  "name": "Optoma 1080p",
+  "match": {
+    "manufacturer": "Optoma",
+    "model": "Optoma 1080p"
+  },
+  "mute": {
+    "picture": "combined",
+    "combinedAcknowledged": false,
+    "audioWhileCombined": false,
+    "toggles": true
+  },
+  "notes": "Measured with the PJLink console on 2026-10-24, on the device itself. AVMT only looks at the first digit and toggles: 2x switches the sound, 3x the picture (reported as 31 while hidden) — whatever the second digit says. 30 hides a visible picture, 31 brings a hidden one back. AVMT 11/10 answer ERR1; 3x is never acknowledged, 2x is acknowledged with OK. 2x has no visible effect while the picture is hidden; the sound comes back as it was. The reported state follows a command only after 1-2 s. CLSS answers \"Class 1\". Class 2 commands and unknown commands get no answer at all instead of ERR1. POWR never reports 2 (cooling) or 3 (warming): after POWR 0 it reports 0 at once and accepts POWR 1 straight away; after POWR 1 it keeps reporting 0 for about 23 s and then 1."
+}

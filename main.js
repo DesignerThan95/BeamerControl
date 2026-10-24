@@ -9,6 +9,9 @@ const { createConnection } = require('./lib/connection');
 const { createScanner } = require('./lib/scanner');
 const { createSearch } = require('./lib/search');
 const mute = require('./lib/mute');
+const { runRaw } = require('./lib/raw-console');
+const deviceProfiles = require('./lib/device-profiles');
+const { TEMPLATES: RAW_TEMPLATES } = require('./lib/pjlink-reference');
 // The translations, read once at startup. They are needed here because the
 // renderer cannot read them itself and the preload script runs sandboxed.
 const { loadResources, normalizeLanguage } = require('./renderer/js/i18n/resources');
@@ -134,13 +137,15 @@ ipcMain.handle('connect', async (event, { host, port, password }) => {
                 await call(link, 'getPowerState');
 
                 const projectorClass = await determineClass(link);
+                device = await identifyDevice(link, host + ':' + port);
 
                 return {
                     success: true,
                     message: 'Connected',
                     pjlinkClass: projectorClass.pjlinkClass,
                     pjlinkClassSource: projectorClass.pjlinkClassSource,
-                    pjlinkClassDetail: projectorClass.pjlinkClassDetail
+                    pjlinkClassDetail: projectorClass.pjlinkClassDetail,
+                    device: device
                 };
             }
         );
@@ -148,6 +153,47 @@ ipcMain.handle('connect', async (event, { host, port, password }) => {
         throw new Error(error.message || 'Connection failed');
     }
 });
+
+// ============ DEVICE PROFILES ============
+//
+// What a particular model really does, where it differs from what PJLink
+// promises — see devices/README.md. Matched on INF1 and INF2 when connecting.
+
+const loadedProfiles = deviceProfiles.loadProfiles();
+loadedProfiles.problems.forEach(function (p) {
+    console.error('[devices] skipping ' + p.file + ': ' + p.reason);
+});
+
+// What a device without a profile has shown about itself, by address — so a
+// dropped connection does not make it find out all over again.
+const learnedByAddress = {};
+
+// The device the app is talking to: who it is, which profile applies, and how
+// it mutes. Sent to the window with every connection and every mute answer.
+let device = describeDevice(null, null, null);
+
+function describeDevice(identity, profile, learned) {
+    return {
+        manufacturer: identity ? identity.manufacturer : null,
+        model: identity ? identity.model : null,
+        profile: profile ? profile.name : null,
+        learned: !profile && !!learned,
+        mute: Object.assign({}, deviceProfiles.STANDARD_MUTE, profile ? profile.mute : learned || {})
+    };
+}
+
+async function identifyDevice(link, address) {
+    const [manufacturer, model] = await Promise.allSettled([
+        call(link, 'getManufacturer'),
+        call(link, 'getModel')
+    ]);
+    const identity = {
+        manufacturer: manufacturer.status === 'fulfilled' ? manufacturer.value : null,
+        model: model.status === 'fulfilled' ? model.value : null
+    };
+
+    return describeDevice(identity, deviceProfiles.matchProfile(loadedProfiles.profiles, identity), learnedByAddress[address]);
+}
 
 // Which PJLink level does the projector report? Class 2 knows the extra
 // commands (volume, freeze, maintenance readings), Class 1 does not. The query
@@ -246,21 +292,27 @@ ipcMain.handle('get-available-inputs', async () => {
 //     the way a command meant for the sound blanks the screen. The silence is
 //     reported instead, and whether it worked is decided by what the projector
 //     reports about itself afterwards.
+//
+// How the device mutes comes from its profile, or from what it has shown so
+// far (lib/device-profiles.js, lib/mute.js).
 ipcMain.handle('set-mute', async (event, { video, audio, only }) => {
     const link = connection.require();
     const wish = { video, audio, only: only || null };
 
-    try {
-        await call(link, 'setMuteRaw', mute.avmtCodeFor(wish));
-        return { success: true, mode: 'separate' };
-    } catch (error) {
-        if (!mute.meansTheDeviceCannot(error.message)) {
-            return { success: true, unanswered: true, reason: error.message };
-        }
+    const result = await mute.carryOut(
+        (code, options) => call(link, 'setMuteRaw', code, options),
+        wish,
+        device.mute,
+        () => call(link, 'getMute')
+    );
 
-        await call(link, 'setMuteRaw', mute.combinedCodeFor(wish));
-        return { success: true, mode: 'combined', reason: error.message };
+    if (result.learned && !device.profile) {
+        const address = link.settings.host + ':' + link.settings.port;
+        learnedByAddress[address] = Object.assign({}, learnedByAddress[address], result.learned);
+        device = describeDevice(device, null, learnedByAddress[address]);
     }
+
+    return Object.assign({}, result, { device: device });
 });
 
 ipcMain.handle('get-mute-state', async () => {
@@ -403,6 +455,16 @@ ipcMain.handle('get-maintenance', async () => {
         }
     };
 });
+
+// ============ PJLINK CONSOLE ============
+//
+// Behind the expert tools on the technical page: one typed line, sent over the
+// same connection as everything else, and the answer as it came. runRaw never
+// throws — what goes wrong comes back as a reason the window can put into words.
+
+ipcMain.handle('send-raw', async (event, line) => runRaw(connection.current(), line));
+
+ipcMain.handle('get-raw-templates', async () => RAW_TEMPLATES);
 
 // ============ SAVING AND LOADING SETTINGS ============
 

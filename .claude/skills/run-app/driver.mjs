@@ -50,7 +50,36 @@ const ANSWERS = {
 // picture AND sound. Nothing in PJLink announces that — it only shows.
 let avmt = '30';
 
+// "optoma" plays the Optoma 1080p in the church, as measured on the device:
+// AVMT only reads the first digit and toggles — 2x the sound, 3x the picture
+// (reported as 31 while hidden). 3x is never answered, 2x is answered with OK
+// and has no effect while the picture is hidden, 1x is refused with ERR1. The
+// reported state follows only after about a second. It identifies itself, so
+// its device profile applies.
+const OPTOMA_ANSWERS = { INF1: 'Optoma', INF2: 'Optoma 1080p', NAME: 'Optoma 1080p', CLSS: 'Class 1', INST: '11 21 31 32' };
+const OPTOMA_LAG_MS = 1200;
+let optomaPicture = true;   // picture showing
+let optomaSound = true;     // sound on
+
+function optomaState() {
+    if (!optomaPicture) return '31';
+    return optomaSound ? '30' : '21';
+}
+
+let optomaReported = '30';
+
+function answerOptomaAVMT(param) {
+    if (param === '?') return optomaReported;
+    if (param[0] === '1') return 'ERR1';
+    if (param[0] === '3') optomaPicture = !optomaPicture;
+    if (param[0] === '2' && optomaPicture) optomaSound = !optomaSound;
+    const next = optomaState();
+    setTimeout(() => { optomaReported = next; }, OPTOMA_LAG_MS);
+    return param[0] === '3' ? null : 'OK';
+}
+
 function answerAVMT(param) {
+    if (mode === 'optoma') return answerOptomaAVMT(param);
     if (param === '?') return avmt;
     if (mode === 'coupled') {
         avmt = param.endsWith('1') ? '31' : '30';
@@ -84,9 +113,13 @@ const server = net.createServer((sock) => {
         for (const line of d.toString().split('\r').filter(Boolean)) {
             const command = line.slice(2, 6);
             const param = line.slice(7);
+            const answers = mode === 'optoma' ? Object.assign({}, ANSWERS, OPTOMA_ANSWERS) : ANSWERS;
             const answer = command === 'AVMT'
                 ? answerAVMT(param)
-                : (ANSWERS[command] ?? 'OK');
+                : (answers[command] ?? 'OK');
+
+            // The Optoma carries out 31/30 and says nothing about it.
+            if (answer === null) continue;
 
             // "swallows" carries the mute out and then says nothing about it.
             // The command took effect; the app is left to find that out for
@@ -123,11 +156,13 @@ const COMMANDS = {
     async launch(arg) {
         if (app) return console.log('already launched');
 
-        // "launch fresh" wipes the settings so the setup wizard runs.
+        // "launch fresh" wipes the settings so the setup wizard runs; "launch
+        // keep" leaves them as the last run left them — for anything that has
+        // to survive a restart.
         if (arg === 'fresh') {
             fs.rmSync(USER_DATA, { recursive: true, force: true });
             fs.mkdirSync(USER_DATA, { recursive: true });
-        } else {
+        } else if (arg !== 'keep') {
             writeSettings();
         }
 
@@ -151,7 +186,14 @@ const COMMANDS = {
 
         // A native error dialog shows up as an extra window. Counting them is
         // how "does the app still pop up errors?" gets answered.
-        app.on('window', (w) => { extraWindows++; console.log('!! extra window:', w.url()); });
+        // The app's own window can arrive through this event as well, when it
+        // opens only after the listener is in place — that one is not extra.
+        let mainSeen = false;
+        app.on('window', (w) => {
+            if (!mainSeen && w.url().endsWith('/renderer/index.html')) { mainSeen = true; return; }
+            extraWindows++;
+            console.log('!! extra window:', w.url());
+        });
 
         page = await app.firstWindow();
         await page.waitForSelector('.ansicht-innen', { timeout: 20_000 });
@@ -160,8 +202,8 @@ const COMMANDS = {
 
     // Switch the projector's behaviour while the app is running.
     async beamer(what) {
-        if (!['answers', 'silent', 'resets', 'coupled', 'swallows'].includes(what)) {
-            return console.log('usage: beamer answers|silent|resets|coupled|swallows   (now: ' + mode + ')');
+        if (!['answers', 'silent', 'resets', 'coupled', 'swallows', 'optoma'].includes(what)) {
+            return console.log('usage: beamer answers|silent|resets|coupled|swallows|optoma   (now: ' + mode + ')');
         }
         mode = what;
         console.log('projector is now:', mode);

@@ -65,6 +65,20 @@ window.App = window.App || {};
         }
     }
 
+    // Which device profile applies — once per change, not on every reconnect.
+    let lastDeviceMessage = null;
+
+    function logDevice(device) {
+        if (!device) return;
+        const who = [device.manufacturer, device.model].filter(Boolean).join(' / ') || 'unknown device';
+        const text = device.profile
+            ? 'Device profile "' + device.profile + '" applies (' + who + ').'
+            : 'No device profile for ' + who + ' — the PJLink standard applies.';
+        if (text === lastDeviceMessage) return;
+        lastDeviceMessage = text;
+        log.add(text, 'info');
+    }
+
     const projector = App.projector.createProjector({
         isFeatureEnabled: function (key) { return store.isClass2FeatureEnabled(key); },
         api: {
@@ -72,6 +86,7 @@ window.App = window.App || {};
                 const c = store.get().connection;
                 const result = await api.connect({ host: c.host, port: c.port, password: c.password });
                 logProjectorClass(result);
+                logDevice(result && result.device);
                 return result;
             },
             getPowerState: api.getPowerState,
@@ -82,18 +97,18 @@ window.App = window.App || {};
             setInput: api.setInput,
             setMute: async function (m) {
                 const result = await api.setMute(m);
-                // If the projector can only mute picture and sound together,
-                // that belongs in the activity log — otherwise the technical
-                // staff wonder why both switches move at once.
-                if (result && result.mode === 'combined' && !muteHintLogged) {
-                    muteHintLogged = true;
-                    log.add('This projector can only mute picture and sound together — both switches therefore act as one.', 'info');
+                // A projector that turned out to hide the picture only together
+                // with the sound. That belongs in the activity log — otherwise
+                // the technical staff wonder why the switch was renamed.
+                if (result && result.learned) {
+                    log.add('This projector refused to hide the picture on its own — from now on "Hide picture" switches picture and sound off together.', 'info');
                 }
                 // A projector that carries the command out and says nothing
                 // about it. That is not a failure — the state it reports on the
                 // next beat decides. But it is worth knowing about: it explains
-                // why the switch takes a few seconds to catch up.
-                if (result && result.unanswered && !muteSilenceLogged) {
+                // why the switch takes a few seconds to catch up. Silence its
+                // device profile announced is not news.
+                if (result && result.unanswered && !result.expected && !muteSilenceLogged) {
                     muteSilenceLogged = true;
                     log.add('The projector did not answer the mute command (' + result.reason + '). Whether it worked is decided by the state it reports afterwards, not by its answer.', 'info');
                 }

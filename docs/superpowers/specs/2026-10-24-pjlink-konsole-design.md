@@ -46,8 +46,8 @@ wird es gebraucht.
     `MVOL 1`, `MVOL 0`
 - Eine **Ergebnisliste**, neuester Eintrag oben. Jeder Eintrag zeigt die
   gesendete Zeile, die empfangene Zeile, die Dauer in Millisekunden und — wo
-  bekannt — die Bedeutung. Die Liste lebt nur, solange die Technik-Seite offen
-  ist.
+  bekannt — die Bedeutung. Die Liste wird nicht gespeichert; sie bleibt bis zum
+  nächsten Start der App.
 - Jeder gesendete Befehl und seine Antwort gehen zusätzlich ins Protokoll.
 
 ## Die Teile
