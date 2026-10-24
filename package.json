@@ -21,8 +21,8 @@
     "i18next": "^26.4.0"
   },
   "devDependencies": {
-    "electron": "^27.0.0",
-    "electron-builder": "^24.6.4",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
     "playwright-core": "^1.62.1"
   },
   "build": {
@@ -59,7 +59,9 @@
           ]
         }
       ],
-      "publisherName": "Ihre Kirche",
+      "signtoolOptions": {
+        "publisherName": "Ihre Kirche"
+      },
       "verifyUpdateCodeSignature": false
     },
     "mac": {
