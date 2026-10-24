@@ -2,6 +2,13 @@
   "name": "beamer-steuerung",
   "version": "2.0.0",
   "description": "Einfache Beamer-Steuerung für die Kirche",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DesignerThan/BeamerControl.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DesignerThan/BeamerControl/issues"
+  },
   "main": "main.js",
   "homepage": "./",
   "scripts": {
@@ -41,6 +48,7 @@
       "index.js",
       "lib/**/*",
       "package.json",
+      "LICENSE",
       "!node_modules/i18next/**/*",
       "!node_modules/electron/**/*",
       "!node_modules/electron-builder/**/*"
@@ -61,7 +69,7 @@
         }
       ],
       "signtoolOptions": {
-        "publisherName": "Ihre Kirche"
+        "publisherName": "DesignerThan"
       },
       "verifyUpdateCodeSignature": false
     },
@@ -101,8 +109,12 @@
     }
   },
   "author": {
-    "name": "Ihre Kirche",
-    "email": "technik@ihre-kirche.de"
+    "name": "DesignerThan",
+    "url": "https://github.com/DesignerThan"
   },
-  "license": "MIT"
+  "contributors": [
+    "Claude (Anthropic)",
+    "Sylvain Vriens (original pjlink library)"
+  ],
+  "license": "GPL-3.0-or-later"
 }
