@@ -4,11 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [2.0.0] – Unreleased
+## [1.0.0] – 2026-10-24
 
-A complete redesign. The single dashboard full of addresses, buttons and status
-cards is gone; the person operating the projector now sees only what operates
-the projector, and everything technical sits behind the gear icon.
+The first public release. It grew out of an internal prototype from August
+2026: a single dashboard with IP address, port and password, a network search,
+status cards and a button for every PJLink Class 1 command. That dashboard is
+gone; the person operating the projector now sees only what operates the
+projector, and everything technical sits behind the gear icon. The lists below
+describe the changes against that prototype.
 
 ### Added
 
@@ -65,8 +68,8 @@ the projector, and everything technical sits behind the gear icon.
 - The network search skips link-local (169.254.x.x) networks and waits longer
   for slow devices.
 - On macOS, closing the window quits the app completely.
-- Settings use a new file format; settings from 1.0 are not carried over, the
-  setup wizard runs once instead.
+- Settings use a new file format; settings from the prototype are not carried
+  over, the setup wizard runs once instead.
 - Licensed as GPL-3.0-or-later, in line with the PJLink library the app is
   built on.
 
@@ -91,10 +94,4 @@ the projector, and everything technical sits behind the gear icon.
 - The PJLink class is read correctly from projectors that answer in unusual
   ways, and an unanswered class query is told apart from a reported one.
 
-## [1.0.0] – 2026-08-08
-
-First version: a single dashboard with IP address, port and password, a
-network search, status cards for power, input and mute, buttons for the PJLink
-Class 1 commands, and an activity log.
-
-[2.0.0]: https://github.com/DesignerThan/BeamerControl/releases/tag/v2.0.0
+[1.0.0]: https://github.com/DesignerThan/BeamerControl/releases/tag/v1.0.0

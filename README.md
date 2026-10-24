@@ -48,16 +48,20 @@ Get the latest version from the
 
 | System | File |
 |---|---|
+| Windows 10/11, installer | `Beamer Steuerung Setup <version>.exe` |
+| Windows 10/11, portable (no installation) | `BeamerSteuerung-<version>-Portable.exe` |
 | macOS, Apple Silicon (M1 and later) | `Beamer Steuerung-<version>-arm64.dmg` |
 | macOS, Intel | `Beamer Steuerung-<version>.dmg` |
 
-The macOS builds are not signed with an Apple developer certificate. The first
-time, open the app with **right-click → Open** and confirm; after that it starts
-normally. macOS will also ask whether the app may find devices on the local
-network — allow it, or the network search finds nothing.
+None of the builds are signed with a code-signing certificate:
 
-Windows builds (installer and portable) are configured but not yet part of a
-release; see [Building](#building).
+- **Windows** shows a SmartScreen warning the first time ("Windows protected
+  your PC"). Choose **More info → Run anyway**. The Windows firewall may ask
+  whether the app may use the network — allow it for private networks.
+- **macOS**: open the app the first time with **right-click → Open** and
+  confirm; after that it starts normally. macOS will also ask whether the app
+  may find devices on the local network — allow it, or the network search
+  finds nothing.
 
 ## Preparing the projector
 
