@@ -94,4 +94,4 @@ describe the changes against that prototype.
 - The PJLink class is read correctly from projectors that answer in unusual
   ways, and an unanswered class query is told apart from a reported one.
 
-[1.0.0]: https://github.com/DesignerThan/BeamerControl/releases/tag/v1.0.0
+[1.0.0]: https://github.com/DesignerThan95/BeamerControl/releases/tag/v1.0.0

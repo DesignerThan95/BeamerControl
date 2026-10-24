@@ -4,10 +4,10 @@
   "description": "Einfache Beamer-Steuerung für die Kirche",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DesignerThan/BeamerControl.git"
+    "url": "https://github.com/DesignerThan95/BeamerControl.git"
   },
   "bugs": {
-    "url": "https://github.com/DesignerThan/BeamerControl/issues"
+    "url": "https://github.com/DesignerThan95/BeamerControl/issues"
   },
   "main": "main.js",
   "homepage": "./",
@@ -110,7 +110,7 @@
   },
   "author": {
     "name": "DesignerThan",
-    "url": "https://github.com/DesignerThan"
+    "url": "https://github.com/DesignerThan95"
   },
   "contributors": [
     "Claude (Anthropic)",

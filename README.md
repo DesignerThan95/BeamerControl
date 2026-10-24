@@ -44,7 +44,7 @@ the connection and naming the inputs.
 ## Download
 
 Get the latest version from the
-[Releases page](https://github.com/DesignerThan/BeamerControl/releases).
+[Releases page](https://github.com/DesignerThan95/BeamerControl/releases).
 
 | System | File |
 |---|---|
@@ -160,7 +160,7 @@ The output goes to `dist/`.
 
 ## Contributors
 
-- **[DesignerThan](https://github.com/DesignerThan)** — author
+- **[DesignerThan](https://github.com/DesignerThan95)** — author
 - **Claude** (Anthropic) — co-author of most of the code
 - **Sylvain Vriens** — author of the original
   [`pjlink`](https://www.npmjs.com/package/pjlink) library (2014), on which
