@@ -1,4 +1,4 @@
-// Einziger Ort, der die preload-Brücke kennt. Alle anderen Dateien rufen App.api.
+// The only place that knows the preload bridge. Every other file calls App.api.
 window.App = window.App || {};
 window.App.api = (function () {
     const p = window.pjlinkAPI;
@@ -14,18 +14,22 @@ window.App.api = (function () {
         setMute: (m) => p.setMute(m),
         getMuteState: () => p.getMuteState(),
         getDeviceInfo: () => p.getDeviceInfo(),
-        speakerVolume: (richtung) => p.speakerVolume(richtung),
-        microphoneVolume: (richtung) => p.microphoneVolume(richtung),
-        setFreeze: (an) => p.setFreeze(an),
+        speakerVolume: (direction) => p.speakerVolume(direction),
+        microphoneVolume: (direction) => p.microphoneVolume(direction),
+        setFreeze: (on) => p.setFreeze(on),
         getFreeze: () => p.getFreeze(),
         getDeviceDetails: () => p.getDeviceDetails(),
         getInputName: (code) => p.getInputName(code),
         getResolutions: () => p.getResolutions(),
         getMaintenance: () => p.getMaintenance(),
+        sendRaw: (line) => p.sendRaw(line),
+        getRawTemplates: () => p.getRawTemplates(),
         loadSettings: () => p.loadSettings(),
         saveSettings: (s) => p.saveSettings(s),
         scanNetwork: () => p.scanNetwork(),
         onScanProgress: (cb) => p.onScanProgress(cb),
+        onMishap: (cb) => p.onMishap(cb),
+        getOsLocale: () => p.getOsLocale(),
         getOsTheme: () => p.getOsTheme(),
         onOsThemeChange: (cb) => p.onOsThemeChange(cb)
     };

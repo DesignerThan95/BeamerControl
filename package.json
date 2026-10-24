@@ -1,13 +1,21 @@
 {
   "name": "beamer-steuerung",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "Einfache Beamer-Steuerung für die Kirche",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DesignerThan/BeamerControl.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DesignerThan/BeamerControl/issues"
+  },
   "main": "main.js",
   "homepage": "./",
   "scripts": {
     "test": "node --test test/*.test.js",
     "start": "electron .",
     "dev": "electron . --dev",
+    "icon": "electron tools/icon-bauen.js",
     "build": "electron-builder",
     "build-win": "electron-builder --win --x64",
     "build-portable": "electron-builder --win portable",
@@ -16,11 +24,13 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "extend": "~3.0.0"
+    "extend": "~3.0.0",
+    "i18next": "^26.4.0"
   },
   "devDependencies": {
-    "electron": "^27.0.0",
-    "electron-builder": "^24.6.4"
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "playwright-core": "^1.62.1"
   },
   "build": {
     "appId": "com.kirche.beamersteuerung",
@@ -33,28 +43,59 @@
       "main.js",
       "preload.js",
       "renderer/**/*",
+      "locales/**/*",
+      "devices/**/*",
       "index.js",
       "lib/**/*",
       "package.json",
+      "LICENSE",
+      "!node_modules/i18next/**/*",
       "!node_modules/electron/**/*",
       "!node_modules/electron-builder/**/*"
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "publisherName": "Ihre Kirche",
+      "signtoolOptions": {
+        "publisherName": "DesignerThan"
+      },
       "verifyUpdateCodeSignature": false
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.utilities",
       "hardenedRuntime": false,
-      "identity": null
+      "identity": null,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Die App sucht im Netzwerk nach dem Beamer und steuert ihn über PJLink. Ohne diese Erlaubnis findet die Suche nichts."
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -64,12 +105,16 @@
       "shortcutName": "Beamer Steuerung"
     },
     "portable": {
-      "artifactName": "BeamerSteuerung-Portable.exe"
+      "artifactName": "BeamerSteuerung-${version}-Portable.exe"
     }
   },
   "author": {
-    "name": "Ihre Kirche",
-    "email": "technik@ihre-kirche.de"
+    "name": "DesignerThan",
+    "url": "https://github.com/DesignerThan"
   },
-  "license": "MIT"
+  "contributors": [
+    "Claude (Anthropic)",
+    "Sylvain Vriens (original pjlink library)"
+  ],
+  "license": "GPL-3.0-or-later"
 }

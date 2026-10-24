@@ -177,6 +177,10 @@ input  { font: inherit; }
 .streifen-knopf { background: var(--warn-border); color: var(--warn-text); border: none; border-radius: var(--radius-sm); padding: 13px 20px; font-weight: 700; flex: none; }
 .streifen-knopf:hover { filter: brightness(1.08); }
 
+/* Der Beamer antwortet gerade nicht: leise, ohne Knopf — verschwindet von selbst. */
+.streifen.still { background: transparent; border-color: var(--border); padding: 12px 16px; }
+.streifen.still .streifen-text { color: var(--text-dim); opacity: 1; margin-top: 0; }
+
 /* Gescheiterter Befehl: gleiche Form, andere Farbe — und immer wegklickbar. */
 .streifen.fehler { background: transparent; border-color: var(--danger); }
 .streifen.fehler .streifen-titel { color: var(--danger); }
@@ -199,6 +203,11 @@ input  { font: inherit; }
 .felder { display: grid; grid-template-columns: 2fr 1fr 1.4fr; gap: var(--gap); }
 .feld-lab { font-size: var(--fs-label); color: var(--text-dim); margin-bottom: 6px; }
 .eingabe { width: 100%; background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; color: var(--text); }
+
+/* Dropdown: erbt Rahmen und Farben von .eingabe, nimmt die 100% Breite von
+   dort aber wieder zurück — es soll nur so breit sein wie nötig. Steht
+   deshalb hinter .eingabe. */
+.auswahl { width: auto; min-width: 220px; max-width: 100%; cursor: pointer; }
 
 .knopfzeile { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
 .hinweis { margin-top: 14px; font-size: var(--fs-small); color: var(--text-dim); line-height: 1.6; max-width: 720px; }
@@ -232,6 +241,11 @@ input  { font: inherit; }
 .schritt.jetzt { background: var(--accent); border-color: var(--accent); color: #fff; }
 .schritt.fertig { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-text); }
 
+/* Language choice in the step bar: set off to the right so it does not drag
+   the step dots along with it, and narrower than a full form field. */
+.sprachwahl { margin-left: auto; display: flex; align-items: center; }
+.sprachwahl .auswahl { min-width: 0; padding: 7px 10px; font-size: var(--fs-small); }
+
 .assistent-titel { font-size: var(--fs-hero); font-weight: 600; margin-bottom: 10px; }
 .assistent-text { color: var(--text-dim); line-height: 1.6; margin-bottom: 24px; max-width: 620px; }
 
@@ -263,3 +277,20 @@ input  { font: inherit; }
 .lautstaerke-paar { display: flex; flex-direction: column; gap: 8px; }
 .lautstaerke-knoepfe { display: flex; gap: 8px; }
 .knopf.lautstaerke { min-width: 108px; }
+
+/* ---------- PJLink-Konsole (Experten-Werkzeuge) ---------- */
+
+.experten-schalter { display: flex; gap: 10px; align-items: center; color: var(--text-dim); font-size: var(--fs-small); cursor: pointer; }
+.konsole-vorlagen { margin-top: 14px; }
+.konsole-eingabezeile { display: flex; gap: var(--gap); margin-top: 10px; }
+.konsole-eingabe { flex: 1; font-family: ui-monospace, 'Consolas', monospace; }
+.konsole-ungueltig { margin-top: 8px; font-size: var(--fs-small); color: var(--danger); }
+.konsole-liste { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+.konsole-leer { font-size: var(--fs-small); color: var(--text-dim); }
+.konsole-eintrag { background: var(--bg); border: var(--border-width) solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; font-family: ui-monospace, 'Consolas', monospace; font-size: var(--fs-small); line-height: 1.7; }
+.konsole-kopf { display: flex; justify-content: space-between; gap: var(--gap); }
+.konsole-dauer { color: var(--text-dim); }
+.konsole-antwort { color: var(--text); }
+.konsole-antwort.still { color: var(--text-dim); }
+.konsole-antwort.fehler { color: var(--danger); }
+.konsole-bedeutung { color: var(--ok); font-family: inherit; }

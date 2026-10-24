@@ -3,6 +3,10 @@
    überschreibt beide. Steht kein data-theme, entscheidet prefers-color-scheme. */
 
 :root {
+    /* Damit vom Betriebssystem gezeichnete Bedienelemente — etwa die
+       aufklappende Liste eines <select> — zum Thema passen. */
+    color-scheme: light;
+
     --bg:            #faf8f5;
     --bg-raised:     #f1ece5;
     --surface:       #ffffff;
@@ -42,6 +46,8 @@
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
+        color-scheme: dark;
+
         --bg:            #15171c;
         --bg-raised:     #1c1f26;
         --surface:       #22262e;
@@ -67,6 +73,8 @@
 }
 
 :root[data-theme="dark"] {
+    color-scheme: dark;
+
     --bg:            #15171c;
     --bg-raised:     #1c1f26;
     --surface:       #22262e;

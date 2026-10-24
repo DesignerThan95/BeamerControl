@@ -1,0 +1,20 @@
+<!-- Das App-Icon in voller Zeichnung, für 128 Pixel und darüber.
+     Bis 64 Pixel gilt icon-klein.svg — siehe docs/superpowers/specs/.
+     Farben aus renderer/css/tokens.css. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Kachel. Bewusst nicht #faf8f5 wie der App-Hintergrund: fast weiß
+       verliert im hellen Dock seine Kontur. -->
+  <rect x="10" y="10" width="80" height="80" rx="21" fill="#efe7da"/>
+
+  <!-- Gehäuse in Beamer-Proportion, breiter als hoch -->
+  <rect x="18" y="33" width="64" height="34" rx="10" fill="#2b2926"/>
+
+  <!-- Objektiv, außermittig links -->
+  <circle cx="39" cy="50" r="13.5" fill="#2f6fb5"/>
+  <circle cx="39" cy="50" r="6.5" fill="#1c4f86"/>
+  <circle cx="34.5" cy="45.5" r="3" fill="#faf8f5" opacity="0.55"/>
+
+  <!-- Lüftungsschlitze -->
+  <rect x="60" y="44" width="14" height="4" rx="2" fill="#faf8f5" opacity="0.5"/>
+  <rect x="60" y="52" width="14" height="4" rx="2" fill="#faf8f5" opacity="0.5"/>
+</svg>

@@ -1,37 +1,40 @@
-// Bedien-Bildschirm. Zeigt in jedem Beamerzustand nur das, was gerade sinnvoll ist.
+// Operating screen. In every projector state, shows only what makes sense now.
+//
+// The CSS class names stay German: they belong to app.css, which is not part
+// of this translation pass.
 window.App = window.App || {};
 window.App.viewOperate = (function () {
     const ui = window.App.ui;
     const el = ui.el;
 
-    // Die PJLink-Rohnamen (RGB, DIGITAL, …) sagen niemandem etwas.
-    // Erste Ziffer der Kennung ist die Art des Anschlusses.
-    const ANSCHLUSS_ART = { '1': 'VGA', '2': 'Video', '3': 'HDMI', '4': 'USB', '5': 'Netzwerk' };
+    // The raw PJLink names (RGB, DIGITAL, …) mean nothing to anyone.
+    // The first digit of the code is the kind of connector.
+    const CONNECTOR_TYPES = { '1': 'vga', '2': 'video', '3': 'hdmi', '4': 'usb', '5': 'network' };
 
-    function anschlussName(code) {
-        const art = ANSCHLUSS_ART[code.charAt(0)] || 'Eingang';
-        return art + ' ' + code.charAt(1);
+    function connectorName(code) {
+        const type = CONNECTOR_TYPES[code.charAt(0)] || 'other';
+        return i18next.t('operate.connectorName', { type: i18next.t('operate.connector.' + type), channel: code.charAt(1) });
     }
 
     let ctx = null;
-    let wurzel = null;
+    let root = null;
 
-    function sichtbareQuellen() {
+    function visibleSources() {
         return ctx.store.get().sources.filter(function (s) { return s.visible; });
     }
 
-    // Solange ein Befehl läuft, ist nichts anderes anklickbar — sonst klickt
-    // jemand dreimal hintereinander, weil der Beamer träge antwortet.
-    function laeuftBefehl(zustand) {
-        return zustand.pending !== null;
+    // While a command is running, nothing else is clickable — otherwise someone
+    // clicks three times in a row because the projector answers sluggishly.
+    function isBusy(state) {
+        return state.pending !== null;
     }
 
-    async function befehl(fn, meldung) {
+    async function run(fn, logMessage) {
         try {
             await fn();
-            if (meldung) ctx.log.add(meldung, 'ok');
+            if (logMessage) ctx.log.add(logMessage, 'ok');
         } catch (e) {
-            ctx.log.add('Befehl fehlgeschlagen: ' + e.message, 'fehler');
+            ctx.log.add('Command failed: ' + e.message, 'error');
         }
     }
 
@@ -39,307 +42,392 @@ window.App.viewOperate = (function () {
         return el('span', { class: 'spinner-klein' });
     }
 
-    // Die PJLink-Bibliothek liefert englische Rohtexte. Auf diesem Bildschirm
-    // darf nichts davon stehen — der Rohtext bleibt im Protokoll.
-    const FEHLERTEXTE = {
-        'Undefined command': 'Der Beamer kennt diesen Befehl nicht.',
-        'Out of parameter': 'Der Beamer hat diese Einstellung nicht angenommen.',
-        'Unavailable time': 'Gerade nicht möglich — der Beamer ist beschäftigt, etwa beim Auf- oder Abwärmen.',
-        'Projector/Display failure': 'Der Beamer meldet eine Störung an sich selbst.',
-        'Authorization failed': 'Das Passwort stimmt nicht. Es lässt sich hinter dem Zahnrad ändern.',
-        'Command reply mismatch': 'Der Beamer hat unerwartet geantwortet.',
-        'Not connected': 'Gerade keine Verbindung zum Beamer.',
-        'Connection timeout': 'Der Beamer hat nicht rechtzeitig geantwortet.',
-        'Nicht verbunden': 'Gerade keine Verbindung zum Beamer.'
+    // The PJLink library hands us raw English wording. None of it belongs on
+    // this screen — the raw text stays in the activity log. The keys of this
+    // table are the library's wording and must not change; only what they turn
+    // into is translated.
+    const ERROR_TEXT_KEYS = {
+        'Undefined command': 'operate.errors.undefinedCommand',
+        'Out of parameter': 'operate.errors.outOfParameter',
+        'Unavailable time': 'operate.errors.unavailableTime',
+        'Projector/Display failure': 'operate.errors.projectorFailure',
+        'Authorization failed': 'operate.errors.authorizationFailed',
+        'Command reply mismatch': 'operate.errors.replyMismatch',
+        'Not connected': 'operate.errors.notConnected',
+        'Connection timeout': 'operate.errors.connectionTimeout',
+        'Malformed response': 'operate.errors.malformedResponse',
+        // The state machine sets no finished sentences, only these codes —
+        // that is the only way its message can be translated here.
+        'command-not-confirmed': 'operate.errors.notConfirmed',
+        'command-failed': 'operate.errors.commandFailed'
     };
 
-    function fehlerKlartext(roh) {
-        return FEHLERTEXTE[roh] || roh || 'Der Beamer hat den Befehl nicht ausgeführt.';
+    function errorText(raw) {
+        const key = ERROR_TEXT_KEYS[raw];
+        if (key) return i18next.t(key);
+        return raw || i18next.t('operate.errors.generic');
     }
 
-    // ---------- Bausteine ----------
+    // ---------- Building blocks ----------
 
-    function fehlerstreifen(zustand) {
+    function errorBanner(state) {
         return el('div', { class: 'streifen fehler' }, [
             el('div', {}, [
-                el('div', { class: 'streifen-titel', text: 'Das hat nicht geklappt' }),
-                el('div', { class: 'streifen-text', text: fehlerKlartext(zustand.commandError) })
+                el('div', { class: 'streifen-titel', text: i18next.t('operate.commandFailedTitle') }),
+                el('div', { class: 'streifen-text', text: errorText(state.commandError) })
             ]),
             el('button', {
                 class: 'streifen-knopf',
-                onclick: function () { ctx.beamer.dismissError(); }
-            }, ['Verstanden'])
+                onclick: function () { ctx.projector.dismissError(); }
+            }, [i18next.t('operate.gotIt')])
         ]);
     }
 
-    function statuszeile(zustand) {
-        const gesperrt = laeuftBefehl(zustand);
-        const muteLaeuft = zustand.pending && zustand.pending.kind === 'mute';
+    // How this device mutes, as the main process describes it. Without a
+    // connection yet: what PJLink promises.
+    const STANDARD_MUTE = { picture: 'separate', combinedAcknowledged: true, audioWhileCombined: true, toggles: false };
 
-        function chip(beschriftung, symbol, aktiv, ziel) {
-            const zeigtSpinner = muteLaeuft
-                && zustand.pending.target.video === ziel.video
-                && zustand.pending.target.audio === ziel.audio;
+    function muteBehaviour(state) {
+        return (state.device && state.device.mute) || STANDARD_MUTE;
+    }
+
+    function statusRow(state) {
+        const locked = isBusy(state);
+        const mutePending = state.pending && state.pending.kind === 'mute';
+
+        function chip(label, icon, active, target, unavailable) {
+            const showsSpinner = mutePending
+                && state.pending.target.video === target.video
+                && state.pending.target.audio === target.audio;
 
             return el('button', {
-                class: 'chip' + (aktiv ? ' aktiv' : ''),
-                disabled: gesperrt,
+                class: 'chip' + (active ? ' aktiv' : ''),
+                disabled: locked || unavailable,
                 onclick: function () {
-                    befehl(function () { return ctx.beamer.setMute(ziel); },
-                        aktiv ? beschriftung + ' aufgehoben' : beschriftung + ' aktiviert');
+                    run(function () { return ctx.projector.setMute(target); },
+                        active ? label + ' lifted' : label + ' switched on');
                 }
-            }, [zeigtSpinner ? spinner() : symbol + ' ', beschriftung]);
+            }, [showsSpinner ? spinner() : icon + ' ', label]);
         }
 
-        const chips = [
-            chip('Bild ausblenden', '🚫', zustand.mute.video, { video: !zustand.mute.video, audio: zustand.mute.audio }),
-            chip('Ton stumm', '🔇', zustand.mute.audio, { video: zustand.mute.video, audio: !zustand.mute.audio })
-        ];
+        // Two switches only as long as the projector really has two. One that
+        // couples picture and sound has shown that by now — then a single
+        // switch is the honest control: whoever presses it knows the picture
+        // goes with it, instead of finding a black screen after muting.
+        //
+        // A device that can hide the picture only together with the sound (its
+        // profile says so, or it has refused 11) keeps a switch for the sound
+        // of its own — the sound alone does work there. The picture switch
+        // says what it really does. While both are off, the sound switch waits
+        // if the device cannot bring the sound back on its own.
+        const behaviour = muteBehaviour(state);
+        let chips;
+        if (state.muteCoupled) {
+            const on = state.mute.video || state.mute.audio;
+            chips = [chip(i18next.t('operate.muteBoth'), '🔇', on, { video: !on, audio: !on })];
+        } else if (behaviour.picture === 'combined') {
+            const off = state.mute.video;
+            chips = [
+                chip(i18next.t('operate.muteBoth'), '🚫', off, { video: !off, audio: !off }),
+                chip(i18next.t('operate.muteAudio'), '🔇', state.mute.audio, { video: state.mute.video, audio: !state.mute.audio },
+                    off && !behaviour.audioWhileCombined)
+            ];
+        } else {
+            chips = [
+                chip(i18next.t('operate.hideVideo'), '🚫', state.mute.video, { video: !state.mute.video, audio: state.mute.audio }),
+                chip(i18next.t('operate.muteAudio'), '🔇', state.mute.audio, { video: state.mute.video, audio: !state.mute.audio })
+            ];
+        }
 
-        // Das Standbild hat — anders als die Lautstärke — eine Abfrage und
-        // läuft deshalb über denselben Bestätigungsweg wie die Stummschaltung.
+        // Freeze — unlike volume — does have a query and therefore runs through
+        // the same confirmation route as muting.
         if (ctx.store.isClass2FeatureEnabled('freeze')) {
-            const laeuft = zustand.pending && zustand.pending.kind === 'freeze';
+            const pending = state.pending && state.pending.kind === 'freeze';
             chips.push(el('button', {
-                class: 'chip' + (zustand.freeze ? ' aktiv' : ''),
-                disabled: gesperrt,
+                class: 'chip' + (state.freeze ? ' aktiv' : ''),
+                disabled: locked,
                 onclick: function () {
-                    befehl(function () { return ctx.beamer.setFreeze(!zustand.freeze); },
-                        zustand.freeze ? 'Standbild aufgehoben' : 'Standbild aktiviert');
+                    run(function () { return ctx.projector.setFreeze(!state.freeze); },
+                        state.freeze ? 'Freeze lifted' : 'Freeze switched on');
                 }
-            }, [laeuft ? spinner() : '❄ ', 'Standbild']));
+            }, [pending ? spinner() : '❄ ', i18next.t('operate.freeze')]));
         }
 
         return el('div', { class: 'statuszeile' }, [
             el('div', { class: 'status' }, [
                 el('span', { class: 'punkt an' }),
-                'Beamer läuft'
+                i18next.t('operate.running')
             ]),
             el('div', { class: 'chips' }, chips)
         ]);
     }
 
-    // PJLink gibt bei der Lautstärke keinen Ist-Wert her und kennt auch keine
-    // Abfrage dafür — es gibt nur Schritte auf und ab. Deshalb kein Balken,
-    // keine Zahl und keine Bestätigungsanzeige: der Druck geht raus, fertig.
-    // Aus demselben Grund sperrt sich hier nichts selbst; mehrmals kurz
-    // hintereinander zu drücken ist der übliche Fall.
-    function lautstaerkeBereich(zustand) {
+    // For volume, PJLink hands out no current level and knows no query for it
+    // either — there are only steps up and down. So no slider, no number and no
+    // confirmation display: the press goes out, done.
+    // For the same reason nothing locks itself here; pressing several times in
+    // quick succession is the normal case.
+    function volumeSection(state) {
         if (!ctx.store.isClass2FeatureEnabled('volume')) return null;
 
-        const gesperrt = laeuftBefehl(zustand);
+        const locked = isBusy(state);
 
-        function paar(beschriftung, runter, hoch) {
+        function pair(label, down, up) {
             return el('div', { class: 'lautstaerke-paar' }, [
-                el('div', { class: 'feld-lab', text: beschriftung }),
+                el('div', { class: 'feld-lab', text: label }),
                 el('div', { class: 'lautstaerke-knoepfe' }, [
                     el('button', {
                         class: 'knopf lautstaerke',
-                        disabled: gesperrt,
-                        title: beschriftung + ' leiser',
-                        onclick: function () { befehl(runter); }
-                    }, ['− leiser']),
+                        disabled: locked,
+                        title: i18next.t('operate.volumeDownTitle', { label: label }),
+                        onclick: function () { run(down); }
+                    }, [i18next.t('operate.volumeDown')]),
                     el('button', {
                         class: 'knopf lautstaerke',
-                        disabled: gesperrt,
-                        title: beschriftung + ' lauter',
-                        onclick: function () { befehl(hoch); }
-                    }, ['+ lauter'])
+                        disabled: locked,
+                        title: i18next.t('operate.volumeUpTitle', { label: label }),
+                        onclick: function () { run(up); }
+                    }, [i18next.t('operate.volumeUp')])
                 ])
             ]);
         }
 
         return el('div', {}, [
-            el('div', { class: 'feldname', text: 'Lautstärke am Beamer' }),
+            el('div', { class: 'feldname', text: i18next.t('operate.volumeHeading') }),
             el('div', { class: 'lautstaerke' }, [
-                paar('Ton',
-                    function () { return ctx.beamer.speakerVolumeDown(); },
-                    function () { return ctx.beamer.speakerVolumeUp(); }),
-                paar('Mikrofon',
-                    function () { return ctx.beamer.microphoneVolumeDown(); },
-                    function () { return ctx.beamer.microphoneVolumeUp(); })
+                pair(i18next.t('operate.audio'),
+                    function () { return ctx.projector.speakerVolumeDown(); },
+                    function () { return ctx.projector.speakerVolumeUp(); }),
+                pair(i18next.t('operate.microphone'),
+                    function () { return ctx.projector.microphoneVolumeDown(); },
+                    function () { return ctx.projector.microphoneVolumeUp(); })
             ]),
-            el('p', { class: 'hinweis', text: 'Der Beamer meldet keinen Lautstärkewert zurück — hier lässt sich nur schrittweise lauter und leiser stellen.' })
+            el('p', { class: 'hinweis', text: i18next.t('operate.volumeHint') })
         ]);
     }
 
-    function quellenBereich(zustand) {
-        const quellen = sichtbareQuellen();
-        const gesperrt = laeuftBefehl(zustand);
-        const wechselZu = zustand.pending && zustand.pending.kind === 'source' ? zustand.pending.target : null;
+    function sourceSection(state) {
+        const sources = visibleSources();
+        const locked = isBusy(state);
+        const switchingTo = state.pending && state.pending.kind === 'source' ? state.pending.target : null;
 
-        if (quellen.length === 0) {
+        if (sources.length === 0) {
             return el('div', {}, [
-                el('div', { class: 'feldname', text: 'Was soll gezeigt werden?' }),
-                el('p', { class: 'mitte-text', text: 'Es ist noch keine Bildquelle eingerichtet. Über das Zahnrad oben rechts lässt sich das nachholen.' })
+                el('div', { class: 'feldname', text: i18next.t('operate.sourceHeading') }),
+                el('p', { class: 'mitte-text', text: i18next.t('operate.noSources') })
             ]);
         }
 
-        const kacheln = quellen.map(function (q) {
-            const aktiv = zustand.sourceCode === q.code;
-            const wechselt = wechselZu === q.code;
+        const tiles = sources.map(function (q) {
+            const active = state.sourceCode === q.code;
+            const switching = switchingTo === q.code;
 
             return el('button', {
-                class: 'kachel' + (aktiv ? ' aktiv' : '') + (wechselt ? ' wechselt' : ''),
-                disabled: gesperrt,
+                class: 'kachel' + (active ? ' aktiv' : '') + (switching ? ' wechselt' : ''),
+                disabled: locked,
                 onclick: function () {
-                    if (aktiv) return;
-                    befehl(function () { return ctx.beamer.selectSource(q.code); }, 'Bildquelle gewechselt auf ' + q.label);
+                    if (active) return;
+                    run(function () { return ctx.projector.selectSource(q.code); }, 'Picture source changed to ' + q.label);
                 }
             }, [
                 q.label,
-                wechselt
-                    ? el('span', { class: 'unter' }, [spinner(), ' wird umgeschaltet …'])
-                    : el('span', { class: 'unter', text: anschlussName(q.code) })
+                switching
+                    ? el('span', { class: 'unter' }, [spinner(), i18next.t('operate.switching')])
+                    : el('span', { class: 'unter', text: connectorName(q.code) })
             ]);
         });
 
-        // Meldet der Beamer eine Quelle, die hier nicht eingerichtet ist (jemand hat
-        // sie per Fernbedienung gewählt), wird sie trotzdem gezeigt — sonst sähe es
-        // aus, als liefe gar nichts. Diese Kachel ist nur Anzeige, kein Knopf.
-        const bekannt = quellen.some(function (q) { return q.code === zustand.sourceCode; });
-        if (zustand.sourceCode && !bekannt) {
-            kacheln.push(el('div', { class: 'kachel aktiv' }, [
-                zustand.sourceName || anschlussName(zustand.sourceCode),
-                el('span', { class: 'unter', text: 'nicht eingerichtet' })
+        // If the projector reports a source that is not set up here (someone
+        // picked it with the remote), it is shown anyway — otherwise it would
+        // look as if nothing were running. That tile is display only, not a button.
+        const known = sources.some(function (q) { return q.code === state.sourceCode; });
+        if (state.sourceCode && !known) {
+            tiles.push(el('div', { class: 'kachel aktiv' }, [
+                state.sourceName || connectorName(state.sourceCode),
+                el('span', { class: 'unter', text: i18next.t('operate.notConfigured') })
             ]));
         }
 
         return el('div', {}, [
-            el('div', { class: 'feldname', text: 'Was soll gezeigt werden?' }),
-            el('div', { class: 'kacheln' }, kacheln)
+            el('div', { class: 'feldname', text: i18next.t('operate.sourceHeading') }),
+            el('div', { class: 'kacheln' }, tiles)
         ]);
     }
 
-    function ausschaltKnopf(zustand) {
+    function powerOffButton(state) {
         return el('button', {
             class: 'knopf aus',
-            disabled: laeuftBefehl(zustand),
+            disabled: isBusy(state),
             onclick: async function () {
-                const ja = await ui.confirmDialog({
-                    titel: 'Beamer ausschalten?',
-                    text: 'Nach dem Ausschalten braucht der Beamer einige Minuten, bevor er sich wieder einschalten lässt.',
-                    bestaetigen: 'Ja, ausschalten',
-                    abbrechen: 'Abbrechen'
+                const confirmed = await ui.confirmDialog({
+                    title: i18next.t('operate.powerOffConfirmTitle'),
+                    text: i18next.t('operate.powerOffConfirmText'),
+                    confirm: i18next.t('operate.powerOffConfirmYes'),
+                    cancel: i18next.t('common.cancel')
                 });
-                if (ja) befehl(function () { return ctx.beamer.powerOff(); }, 'Ausschalten angefordert');
+                if (confirmed) run(function () { return ctx.projector.powerOff(); }, 'Switch-off requested');
             }
-        }, ['Beamer ausschalten']);
+        }, [i18next.t('operate.powerOff')]);
     }
 
-    function mitte(titel, text, knopf) {
+    function centered(title, text, button) {
         return el('div', { class: 'mitte' }, [
-            el('div', { class: 'mitte-titel', text: titel }),
+            el('div', { class: 'mitte-titel', text: title }),
             text ? el('div', { class: 'mitte-text', text: text }) : null,
-            knopf || null
+            button || null
         ]);
     }
 
-    function warten(titel, text) {
+    function waiting(title, text) {
         return el('div', { class: 'mitte' }, [
             el('div', { class: 'pulsen' }),
-            el('div', { class: 'mitte-titel', text: titel }),
+            el('div', { class: 'mitte-titel', text: title }),
             text ? el('div', { class: 'mitte-text', text: text }) : null
         ]);
     }
 
-    // ---------- Die einzelnen Zustände ----------
+    // ---------- The individual states ----------
 
-    function inhaltFuer(zustand) {
-        if (zustand.link === 'connecting') {
-            return warten('Einen Moment …', 'Die App nimmt Kontakt zum Beamer auf.');
+    function contentFor(state) {
+        if (state.link === 'connecting') {
+            // Building the connection can take half a minute: three attempts,
+            // each waiting out its own timeout. Saying "one moment" for all of
+            // that looks like the app has stopped. So once an attempt has
+            // really gone wrong, it says so — and how many are left.
+            // i18next picks the singular from `count`; the last attempt reads
+            // "once more" rather than "1 more time".
+            const remaining = window.App.projector.MAX_FAILURES - state.failedAttempts;
+
+            const text = state.failedAttempts > 0 && remaining > 0
+                ? i18next.t('operate.connectingRetryText', { count: remaining })
+                : i18next.t('operate.connectingText');
+
+            return waiting(i18next.t('operate.connectingTitle'), text);
         }
 
-        if (zustand.link === 'offline') {
-            return mitte(
-                'Kein Kontakt zum Beamer',
-                'Die App versucht es weiter. Bleibt es dabei, hilft meist: Beamer einschalten oder Netzwerkkabel prüfen. Alles Weitere steht hinter dem Zahnrad oben rechts.',
+        if (state.link === 'offline') {
+            return centered(
+                i18next.t('operate.offlineTitle'),
+                i18next.t('operate.offlineText'),
                 el('button', {
                     class: 'knopf',
-                    onclick: function () { ctx.beamer.refreshNow(); }
-                }, ['Jetzt noch einmal versuchen'])
+                    onclick: function () { ctx.projector.refreshNow(); }
+                }, [i18next.t('operate.retry')])
             );
         }
 
-        // Ein laufender Ein- oder Ausschaltbefehl übernimmt den Bildschirm, bis
-        // der Beamer den neuen Zustand meldet. Sonst stünde weiter der
-        // Einschalten-Knopf da, obwohl der Beamer längst hochfährt.
-        if (zustand.pending && zustand.pending.kind === 'power-on') {
-            return warten('Der Beamer wird eingeschaltet …', 'Bitte einen Moment Geduld — das Hochfahren dauert meist eine halbe bis eine Minute.');
+        // A running switch-on or switch-off command takes over the screen until
+        // the projector reports the new state. Otherwise the switch-on button
+        // would still be sitting there while the projector is already starting up.
+        if (state.pending && state.pending.kind === 'power-on') {
+            return waiting(i18next.t('operate.poweringOnTitle'), i18next.t('operate.poweringOnText'));
         }
 
-        if (zustand.pending && zustand.pending.kind === 'power-off') {
-            return warten('Der Beamer wird ausgeschaltet …', 'Danach kühlt die Lampe ab.');
+        if (state.pending && state.pending.kind === 'power-off') {
+            return waiting(i18next.t('operate.poweringOffTitle'), i18next.t('operate.poweringOffText'));
         }
 
-        if (zustand.power === 'warming') {
-            return warten('Der Beamer wärmt sich auf …', 'Das dauert meist eine halbe bis eine Minute.');
+        if (state.power === 'warming') {
+            return waiting(i18next.t('operate.warmingTitle'), i18next.t('operate.warmingText'));
         }
 
-        if (zustand.power === 'cooling') {
-            return warten('Der Beamer kühlt ab …', 'Solange die Lampe abkühlt, lässt er sich nicht wieder einschalten.');
+        if (state.power === 'cooling') {
+            return waiting(i18next.t('operate.coolingTitle'), i18next.t('operate.coolingText'));
         }
 
-        if (zustand.power === 'off' || zustand.power === 'unknown') {
-            return mitte(
-                'Der Beamer ist aus',
+        if (state.power === 'off' || state.power === 'unknown') {
+            return centered(
+                i18next.t('operate.offTitle'),
                 null,
                 el('button', {
                     class: 'knopf haupt gross',
-                    onclick: function () { befehl(function () { return ctx.beamer.powerOn(); }, 'Einschalten angefordert'); }
-                }, ['Beamer einschalten'])
+                    onclick: function () { run(function () { return ctx.projector.powerOn(); }, 'Switch-on requested'); }
+                }, [i18next.t('operate.powerOn')])
             );
         }
 
-        // Ab hier: der Beamer läuft.
-        const teile = [];
+        // From here on: the projector is running.
+        const parts = [];
 
-        if (zustand.mute.video) {
-            teile.push(el('div', { class: 'streifen' }, [
+        if (state.mute.video) {
+            parts.push(el('div', { class: 'streifen' }, [
                 el('div', {}, [
-                    el('div', { class: 'streifen-titel', text: 'Die Leinwand ist gerade schwarz' }),
-                    el('div', { class: 'streifen-text', text: 'Der Beamer läuft weiter — das Bild ist nur ausgeblendet.' })
+                    el('div', { class: 'streifen-titel', text: i18next.t('operate.videoMutedTitle') }),
+                    el('div', { class: 'streifen-text', text: i18next.t('operate.videoMutedText') })
                 ]),
                 el('button', {
                     class: 'streifen-knopf',
-                    disabled: laeuftBefehl(zustand),
+                    disabled: isBusy(state),
                     onclick: function () {
-                        befehl(function () {
-                            return ctx.beamer.setMute({ video: false, audio: zustand.mute.audio });
-                        }, 'Bild wieder eingeblendet');
+                        run(function () {
+                            // On a coupled projector the sound comes back with
+                            // the picture whether we ask for it or not. Then
+                            // that is what gets asked for — a wish the device
+                            // cannot grant is not worth sending.
+                            return ctx.projector.setMute(state.muteCoupled || muteBehaviour(state).picture === 'combined'
+                                ? { video: false, audio: false }
+                                : { video: false, audio: state.mute.audio });
+                        }, 'Picture shown again');
                     }
-                }, ['Bild wieder zeigen'])
+                }, [i18next.t('operate.showVideo')])
             ]));
         }
 
-        teile.push(statuszeile(zustand), quellenBereich(zustand));
+        parts.push(statusRow(state));
 
-        const lautstaerke = lautstaerkeBereich(zustand);
-        if (lautstaerke) teile.push(lautstaerke);
+        // Why there is one switch here and not two. Stands quietly under the
+        // row, not as a banner — it is not a fault, it is what the device is.
+        if (state.muteCoupled) {
+            parts.push(el('div', { class: 'hinweis', text: i18next.t('operate.muteCoupledHint') }));
+        } else if (muteBehaviour(state).picture === 'combined') {
+            parts.push(el('div', { class: 'hinweis', text: i18next.t(muteBehaviour(state).audioWhileCombined
+                ? 'operate.muteCombinedHint'
+                : 'operate.muteCombinedAudioHint') }));
+        }
 
-        teile.push(ausschaltKnopf(zustand));
+        parts.push(sourceSection(state));
 
-        return el('div', {}, teile);
+        const volume = volumeSection(state);
+        if (volume) parts.push(volume);
+
+        parts.push(powerOffButton(state));
+
+        return el('div', {}, parts);
+    }
+
+    // One missed beat happens without anything being wrong — the projector's
+    // single PJLink slot was busy for a moment, the network hiccuped. Saying so
+    // every time would teach people that the notice means nothing. Two in a
+    // row is worth a quiet word: the controls stay, the word goes away by
+    // itself once the projector answers again, and after the third "no
+    // contact" takes over anyway.
+    const SHAKY_AFTER_FAILURES = 2;
+
+    function looksShaky(state) {
+        return state.link === 'online' && state.failedAttempts >= SHAKY_AFTER_FAILURES;
     }
 
     function render() {
-        if (!wurzel) wurzel = document.getElementById('ansicht-operate');
-        const zustand = ctx.beamer.getState();
-        ui.clear(wurzel);
+        if (!root) root = document.getElementById('ansicht-operate');
+        const state = ctx.projector.getState();
+        ui.clear(root);
 
-        // Ein gescheiterter Befehl erscheint als Streifen über der normalen
-        // Bedienung — sie bleibt benutzbar. Ein Bildschirm, aus dem man nur
-        // durch Neustart herauskommt, darf es hier nicht geben.
-        const teile = [];
-        if (zustand.commandError) teile.push(fehlerstreifen(zustand));
-        teile.push(inhaltFuer(zustand));
+        // A failed command appears as a banner above the normal controls — they
+        // stay usable. A screen you can only get out of by restarting must not
+        // exist here.
+        const parts = [];
+        if (state.commandError) parts.push(errorBanner(state));
+        if (looksShaky(state)) parts.push(el('div', { class: 'streifen still' }, [
+            el('div', { class: 'streifen-text', text: i18next.t('operate.connectionShaky') })
+        ]));
+        parts.push(contentFor(state));
 
-        wurzel.appendChild(el('div', { class: 'ansicht-innen' }, teile));
+        root.appendChild(el('div', { class: 'ansicht-innen' }, parts));
     }
 
     return {
         init: function (c) { ctx = c; },
         render: render,
-        anschlussName: anschlussName
+        connectorName: connectorName
     };
 })();

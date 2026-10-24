@@ -1,74 +1,74 @@
-// Hell / Dunkel / Systemeinstellung und hoher Kontrast.
-// Setzt data-theme und data-contrast am <html>-Element; die Farben stehen in tokens.css.
+// Light / dark / operating system setting, and high contrast.
+// Sets data-theme and data-contrast on the <html> element; the colours live in tokens.css.
 window.App = window.App || {};
 window.App.theme = (function () {
 
     function createTheme(store) {
-        const wurzel = document.documentElement;
-        let abmelden = null;
+        const root = document.documentElement;
+        let unsubscribe = null;
 
-        function anwenden() {
+        function apply() {
             const a = store.get().appearance;
 
             if (a.theme === 'system') {
-                wurzel.removeAttribute('data-theme');
+                root.removeAttribute('data-theme');
             } else {
-                wurzel.setAttribute('data-theme', a.theme);
+                root.setAttribute('data-theme', a.theme);
             }
 
             if (a.highContrast) {
-                wurzel.setAttribute('data-contrast', 'high');
+                root.setAttribute('data-contrast', 'high');
             } else {
-                wurzel.removeAttribute('data-contrast');
+                root.removeAttribute('data-contrast');
             }
         }
 
-        // Im Modus "system" muss die App mitlaufen, wenn Windows abends umschaltet.
-        // prefers-color-scheme in tokens.css erledigt das von allein; der Hörer
-        // dient nur dazu, die Ansicht danach neu zu zeichnen.
-        function systemBeobachten(beiWechsel) {
-            if (abmelden) { abmelden(); abmelden = null; }
-            abmelden = window.App.api.onOsThemeChange(function () {
-                if (store.get().appearance.theme === 'system' && beiWechsel) beiWechsel();
+        // In "system" mode the app has to follow along when Windows switches
+        // over in the evening. prefers-color-scheme in tokens.css does that on
+        // its own; the listener only exists to redraw the view afterwards.
+        function watchSystem(onChange) {
+            if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+            unsubscribe = window.App.api.onOsThemeChange(function () {
+                if (store.get().appearance.theme === 'system' && onChange) onChange();
             });
         }
 
         return {
-            init: function (beiWechsel) {
-                anwenden();
-                systemBeobachten(beiWechsel);
+            init: function (onChange) {
+                apply();
+                watchSystem(onChange);
             },
 
-            setTheme: function (wert) {
-                store.setAppearance(Object.assign({}, store.get().appearance, { theme: wert }));
-                anwenden();
+            setTheme: function (value) {
+                store.setAppearance(Object.assign({}, store.get().appearance, { theme: value }));
+                apply();
                 store.save();
             },
 
-            setHighContrast: function (an) {
-                store.setAppearance(Object.assign({}, store.get().appearance, { highContrast: an === true }));
-                anwenden();
+            setHighContrast: function (on) {
+                store.setAppearance(Object.assign({}, store.get().appearance, { highContrast: on === true }));
+                apply();
                 store.save();
             },
 
             getTheme: function () { return store.get().appearance.theme; },
             getHighContrast: function () { return store.get().appearance.highContrast; },
 
-            // Der Knopf in der Kopfzeile schaltet stur zwischen hell und dunkel.
-            // Aus "system" heraus wird das Gegenteil dessen gewählt, was gerade zu sehen ist.
+            // The button in the header switches doggedly between light and dark.
+            // Coming out of "system" it picks the opposite of what is on screen.
             toggleAsync: async function () {
-                const jetzt = store.get().appearance.theme;
-                let neu;
-                if (jetzt === 'dark') {
-                    neu = 'light';
-                } else if (jetzt === 'light') {
-                    neu = 'dark';
+                const current = store.get().appearance.theme;
+                let next;
+                if (current === 'dark') {
+                    next = 'light';
+                } else if (current === 'light') {
+                    next = 'dark';
                 } else {
-                    const os = await window.App.api.getOsTheme();
-                    neu = os === 'dark' ? 'light' : 'dark';
+                    const osTheme = await window.App.api.getOsTheme();
+                    next = osTheme === 'dark' ? 'light' : 'dark';
                 }
-                this.setTheme(neu);
-                return neu;
+                this.setTheme(next);
+                return next;
             }
         };
     }

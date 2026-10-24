@@ -2,155 +2,155 @@ const test = require('node:test');
 const assert = require('node:assert');
 const Command = require('../lib/command.js');
 
-// ---------- Kern: Header pro Befehl statt pro Verbindung ----------
+// ---------- The core: a header per command instead of per connection ----------
 
-test('ein Befehl ohne cls bekommt den Header der Verbindung', () => {
+test('a command without cls gets the connection header', () => {
     const cmd = new Command.PowerCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%1POWR ?');
 });
 
-test('ein Befehl mit cls 2 bekommt seinen eigenen Header', () => {
+test('a command with cls 2 gets its own header', () => {
     const cmd = new Command('FREZ', '?', null);
     cmd.cls = 2;
     assert.strictEqual(cmd.toWire(1), '%2FREZ ?');
 });
 
-// Das ist die eigentliche Zusicherung dieser Erweiterung: kein bestehender
-// Befehl darf durch Class 2 ein anderes Byte auf die Leitung legen als vorher.
-test('alle bestehenden Befehle bleiben Class 1', () => {
-    const bestehend = [
+// This is the actual guarantee of the Class 2 extension: no existing command
+// may put a different byte on the wire than it did before.
+test('every existing command stays Class 1', () => {
+    const existing = [
         'PowerCommand', 'InputCommand', 'MuteCommand', 'ErrorsCommand',
         'LampCommand', 'InputsCommand', 'NameCommand', 'ManufacturerCommand',
         'ModelCommand', 'InfoCommand', 'ClassCommand'
     ];
 
-    bestehend.forEach(function (name) {
+    existing.forEach(function (name) {
         const cmd = new Command[name](function () {});
-        assert.strictEqual(cmd.cls, undefined, name + ' darf kein cls setzen');
-        assert.ok(cmd.toWire(1).indexOf('%1') === 0, name + ' muss mit %1 senden');
+        assert.strictEqual(cmd.cls, undefined, name + ' must not set cls');
+        assert.ok(cmd.toWire(1).indexOf('%1') === 0, name + ' must send with %1');
     });
 });
 
-// ---------- Lautstärke (SVOL / MVOL) ----------
+// ---------- Volume (SVOL / MVOL) ----------
 
-test('Lautsprecher lauter sendet SVOL 1', () => {
+test('speaker louder sends SVOL 1', () => {
     const cmd = new Command.SVOLCommand(Command.VOLUME.UP, function () {});
     assert.strictEqual(cmd.toWire(1), '%2SVOL 1');
 });
 
-test('Lautsprecher leiser sendet SVOL 0', () => {
+test('speaker quieter sends SVOL 0', () => {
     const cmd = new Command.SVOLCommand(Command.VOLUME.DOWN, function () {});
     assert.strictEqual(cmd.toWire(1), '%2SVOL 0');
 });
 
-test('Mikrofon lauter sendet MVOL 1', () => {
+test('microphone louder sends MVOL 1', () => {
     const cmd = new Command.MVOLCommand(Command.VOLUME.UP, function () {});
     assert.strictEqual(cmd.toWire(1), '%2MVOL 1');
 });
 
-test('Lautstärke versteht auch up und down als Wort', () => {
+test('volume also understands up and down as words', () => {
     assert.strictEqual(new Command.SVOLCommand('up').toWire(1), '%2SVOL 1');
     assert.strictEqual(new Command.MVOLCommand('down').toWire(1), '%2MVOL 0');
 });
 
-// Ohne Richtung wäre die Zeile "%2SVOL" — der Beamer antwortete mit ERR2.
-// Lieber hier scheitern, wo der Fehler im Aufruf steht.
-test('Lautstärke ohne Richtung wird abgelehnt', () => {
-    assert.throws(() => new Command.SVOLCommand(function () {}), /Richtung/);
-    assert.throws(() => new Command.MVOLCommand('lauter'), /Richtung/);
+// Without a direction the line would be "%2SVOL" — and the projector would
+// answer with ERR2. Better to fail here, where the mistake is in the call.
+test('volume without a direction is refused', () => {
+    assert.throws(() => new Command.SVOLCommand(function () {}), /Direction/);
+    assert.throws(() => new Command.MVOLCommand('louder'), /Direction/);
 });
 
-// ---------- Standbild (FREZ) ----------
+// ---------- Freeze (FREZ) ----------
 
-test('Standbild einschalten sendet FREZ 1', () => {
+test('switching freeze on sends FREZ 1', () => {
     const cmd = new Command.FreezeCommand(true, function () {});
     assert.strictEqual(cmd.toWire(1), '%2FREZ 1');
 });
 
-test('Standbild ausschalten sendet FREZ 0', () => {
+test('switching freeze off sends FREZ 0', () => {
     const cmd = new Command.FreezeCommand(false, function () {});
     assert.strictEqual(cmd.toWire(1), '%2FREZ 0');
 });
 
-test('Standbild ohne Wert fragt ab', () => {
+test('freeze without a value queries instead', () => {
     const cmd = new Command.FreezeCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%2FREZ ?');
 });
 
-test('Antwort auf die Standbild-Abfrage wird zu wahr oder falsch', () => {
+test('the answer to a freeze query becomes true or false', () => {
     const cmd = new Command.FreezeCommand(function () {});
     assert.strictEqual(cmd.formatResult(['1']), true);
     assert.strictEqual(cmd.formatResult(['0']), false);
 });
 
-// Auf einen Schaltbefehl antwortet der Beamer mit OK, nicht mit 0 oder 1.
-// Daraus darf kein "Standbild ist aus" werden.
-test('die Quittung OK gilt nicht als Standbild-Zustand', () => {
+// A projector answers a switching command with OK, not with 0 or 1. That must
+// never turn into "freeze is off".
+test('the OK acknowledgement does not count as a freeze state', () => {
     const cmd = new Command.FreezeCommand(true, function () {});
     assert.strictEqual(cmd.formatResult(['OK']), undefined);
 });
 
-// ---------- Seriennummer und Softwareversion ----------
+// ---------- Serial number and software version ----------
 
-test('Seriennummer wird abgefragt', () => {
+test('the serial number is queried', () => {
     const cmd = new Command.SerialNumberCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%2SNUM ?');
 });
 
-test('Softwareversion wird abgefragt', () => {
+test('the software version is queried', () => {
     const cmd = new Command.SoftwareVersionCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%2SVER ?');
 });
 
-// Antworten dürfen Leerzeichen enthalten. Ohne Zusammenfügen käme beim
-// Aufrufer nur der erste Teil an.
-test('eine mehrteilige Softwareversion bleibt ein Text', () => {
+// Answers may contain spaces. Without putting them back together, only the
+// first part would reach the caller.
+test('a multi-part software version stays one text', () => {
     const cmd = new Command.SoftwareVersionCommand(function () {});
     assert.strictEqual(cmd.formatResult(['FW', '1.20']), 'FW 1.20');
 });
 
-// ---------- Name eines Eingangs (INNM) ----------
+// ---------- Name of an input (INNM) ----------
 
-// Der einzige Abfragebefehl mit Parameter: gefragt wird nach einem
-// bestimmten Eingang, nicht nach allen.
-test('der Name eines Eingangs wird mit dessen Kennung abgefragt', () => {
+// The only query command with a parameter: it asks about one specific input,
+// not about all of them.
+test('the name of an input is queried with its code', () => {
     const cmd = new Command.InputNameCommand('31', function () {});
     assert.strictEqual(cmd.toWire(1), '%2INNM ?31');
 });
 
-test('der Eingangsname darf Leerzeichen enthalten', () => {
+test('an input name may contain spaces', () => {
     const cmd = new Command.InputNameCommand('31', function () {});
-    assert.strictEqual(cmd.formatResult(['HDMI', '1', 'vorne']), 'HDMI 1 vorne');
+    assert.strictEqual(cmd.formatResult(['HDMI', '1', 'front']), 'HDMI 1 front');
 });
 
-test('ohne Eingangskennung wird die Namensabfrage abgelehnt', () => {
-    assert.throws(() => new Command.InputNameCommand(function () {}), /Eingang/);
-    assert.throws(() => new Command.InputNameCommand('3'), /Eingang/);
+test('without an input code the name query is refused', () => {
+    assert.throws(() => new Command.InputNameCommand(function () {}), /Input/);
+    assert.throws(() => new Command.InputNameCommand('3'), /Input/);
 });
 
-// ---------- Auflösung (IRES / RRES) ----------
+// ---------- Resolution (IRES / RRES) ----------
 
-test('die anliegende Auflösung wird abgefragt', () => {
+test('the incoming resolution is queried', () => {
     const cmd = new Command.InputResolutionCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%2IRES ?');
 });
 
-test('die empfohlene Auflösung wird abgefragt', () => {
+test('the recommended resolution is queried', () => {
     const cmd = new Command.RecommendResolutionCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%2RRES ?');
 });
 
-test('eine Auflösung wird in Breite und Höhe zerlegt', () => {
+test('a resolution is split into width and height', () => {
     const cmd = new Command.InputResolutionCommand(function () {});
     assert.deepStrictEqual(cmd.formatResult(['1920x1080']), {
         code: '1920x1080', width: 1920, height: 1080
     });
 });
 
-// PJLink meldet "-" für kein Signal und "*" für ein Signal, das der Beamer
-// nicht einordnen kann. Beides sind gültige Antworten, keine Fehler — die
-// Deutung in Klartext gehört nicht in die Protokollschicht.
-test('kein anliegendes Signal bleibt als Sonderfall erkennbar', () => {
+// PJLink reports "-" for no signal and "*" for a signal the projector cannot
+// classify. Both are valid answers, not errors — reading them as plain words
+// does not belong in the protocol layer.
+test('no incoming signal stays recognizable as a special case', () => {
     const cmd = new Command.InputResolutionCommand(function () {});
     assert.deepStrictEqual(cmd.formatResult(['-']), {
         code: '-', width: null, height: null
@@ -160,74 +160,72 @@ test('kein anliegendes Signal bleibt als Sonderfall erkennbar', () => {
     });
 });
 
-// ---------- Wartung (FILT / RLMP / RFIL) ----------
+// ---------- Maintenance (FILT / RLMP / RFIL) ----------
 
-test('die Filter-Betriebsstunden werden abgefragt', () => {
+test('the filter operating hours are queried', () => {
     const cmd = new Command.FilterUsageCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%2FILT ?');
 });
 
-// FILT ist — anders als LAMP — ein einzelner Wert: die aufsummierten
-// Betriebsstunden des Filters. Es gibt hier keine Paare aus Stunden und
-// Zustand, die zu zerlegen wären.
-test('die Filter-Betriebsstunden sind eine einzelne Zahl', () => {
+// FILT is — unlike LAMP — a single value: the accumulated operating hours of
+// the filter. There are no pairs of hours and state to split apart here.
+test('the filter operating hours are a single number', () => {
     const cmd = new Command.FilterUsageCommand(function () {});
     assert.strictEqual(cmd.formatResult(['1234']), 1234);
 });
 
-test('die Ersatzlampen-Nummern werden abgefragt', () => {
+test('the replacement lamp numbers are queried', () => {
     const cmd = new Command.LampReplacementCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%2RLMP ?');
 });
 
-test('die Ersatzfilter-Nummern werden abgefragt', () => {
+test('the replacement filter numbers are queried', () => {
     const cmd = new Command.FilterReplacementCommand(function () {});
     assert.strictEqual(cmd.toWire(1), '%2RFIL ?');
 });
 
-// Ein Beamer mit mehreren Lampen nennt mehrere Modellnummern, durch
-// Leerzeichen getrennt. Beim Aufrufer muss die vollständige Liste ankommen.
-test('mehrere Ersatzlampen kommen als Liste an', () => {
+// A projector with several lamps names several model numbers, separated by
+// spaces. The complete list has to reach the caller.
+test('several replacement lamps arrive as a list', () => {
     const cmd = new Command.LampReplacementCommand(function () {});
     assert.deepStrictEqual(cmd.formatResult(['ET-LAV400', 'ET-LAV401']), [['ET-LAV400', 'ET-LAV401']]);
 });
 
-// Laserprojektoren haben keine Wechsellampe und antworten mit leerer Liste.
-// Das ist kein Fehler und darf keiner werden.
-test('kein Ersatzteil ergibt eine leere Liste', () => {
+// Laser projectors have no replaceable lamp and answer with an empty list.
+// That is not an error and must not become one.
+test('no replacement part gives an empty list', () => {
     const cmd = new Command.LampReplacementCommand(function () {});
     assert.deepStrictEqual(cmd.formatResult([]), [[]]);
 });
 
-// ---------- Klassenabfrage (CLSS) ----------
+// ---------- Class query (CLSS) ----------
 
-// Die Spezifikation sieht auf %1CLSS ? nur die nackte Ziffer vor. Optoma
-// antwortet stattdessen "Class 1" — nachgemessen an einem echten Gerät.
-// response.js zerlegt am Leerzeichen, die Antwort kommt also als zwei Teile
-// an. Wer hier eine einzelne Ziffer erwartet, bekommt bei solchen Geräten
-// nichts Brauchbares.
-test('die spec-konforme Antwort wird gelesen', () => {
+// The spec only foresees the bare digit in reply to %1CLSS ?. Optoma answers
+// "Class 1" instead — measured on a real device. response.js splits on spaces,
+// so the answer arrives in two parts. Anything expecting a single digit gets
+// nothing usable out of such devices.
+test('the spec-conforming answer is read', () => {
     const cmd = new Command.ClassCommand(function () {});
     assert.deepStrictEqual(cmd.formatResult(['1']), { cls: 1, raw: '1' });
     assert.deepStrictEqual(cmd.formatResult(['2']), { cls: 2, raw: '2' });
 });
 
-test('die Optoma-Schreibweise mit Wort davor wird ebenso gelesen', () => {
+test('the Optoma spelling with a word in front is read just as well', () => {
     const cmd = new Command.ClassCommand(function () {});
     assert.deepStrictEqual(cmd.formatResult(['Class', '1']), { cls: 1, raw: 'Class 1' });
     assert.deepStrictEqual(cmd.formatResult(['Class', '2']), { cls: 2, raw: 'Class 2' });
 });
 
-// Der Rohtext muss erhalten bleiben: nur damit lässt sich später im Protokoll
-// nachvollziehen, was das Gerät tatsächlich gesagt hat.
-test('eine unbrauchbare Antwort behält ihren Wortlaut', () => {
+// The raw wording has to survive: only that makes it possible to see later in
+// the activity log what the device actually said.
+test('an unusable answer keeps its wording', () => {
     const cmd = new Command.ClassCommand(function () {});
-    assert.deepStrictEqual(cmd.formatResult(['Quatsch']), { cls: null, raw: 'Quatsch' });
+    assert.deepStrictEqual(cmd.formatResult(['Nonsense']), { cls: null, raw: 'Nonsense' });
     assert.deepStrictEqual(cmd.formatResult([]), { cls: null, raw: '' });
 });
 
-// PJLink kennt nur Class 1 und 2. Alles andere ist keine Klassenangabe.
-test('eine Ziffer außerhalb von 1 und 2 gilt nicht als Klasse', () => {
+// PJLink only knows Class 1 and 2. Anything else is not a class.
+test('a digit outside 1 and 2 does not count as a class', () => {
     const cmd = new Command.ClassCommand(function () {});
     assert.deepStrictEqual(cmd.formatResult(['Class', '7']), { cls: null, raw: 'Class 7' });
 });
